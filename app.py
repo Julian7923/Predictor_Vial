@@ -32,7 +32,7 @@ DICCIONARIO_BOGOTA = {
     16: {"nombre": "Puente Aranda", "coord": [4.6200, -74.1150]},
     17: {"nombre": "La Candelaria", "coord": [4.5960, -74.0720]},
     18: {"nombre": "Rafael Uribe Uribe", "coord": [4.5600, -74.1200]},
-    19: {"nombre": "Ciudad Bolívar", "coord": [4.5200, -74.1500]},
+    19: {"nombre": "Ciudad Bolívar", "colors": [4.5200, -74.1500], "coord": [4.5200, -74.1500]},
     20: {"nombre": "Sumapaz", "coord": [4.0100, -74.3200]}
 }
 
@@ -64,16 +64,22 @@ def consumir_datos_en_linea():
 
 df_live = consumir_datos_en_linea()
 
+# --- NORMALIZACIÓN DE VARIABLES ---
 if 'ACCIDENTE_CON' not in df_live.columns and 'GRAVEDAD' in df_live.columns:
     df_live['ACCIDENTE_CON'] = df_live['GRAVEDAD'].map({1: "Con Muertos", 2: "Con Heridos", 3: "Solo Daños"})
 if 'CLASE_ACCIDENTE' not in df_live.columns and 'CLASE' in df_live.columns:
     df_live['CLASE_ACCIDENTE'] = df_live['CLASE']
 
+# 🔥 CORRECCIÓN CRÍTICA: Forzamos la extracción únicamente del primer elemento col_sexo_detectada[0] para evitar subtablas DataFrame
+col_sexo_detectada = [c for c in df_live.columns if "SEXO" in c or "GENERO" in c]
+if col_sexo_detectada:
+    df_live['SEXO'] = df_live[col_sexo_detectada[0]].astype(str).str.strip().str.upper()
+
 for col, defecto in [('ACCIDENTE_CON', 'Todos'), ('CLASE_ACCIDENTE', 'Choque'), ('SEXO', 'MASCULINO'), ('CONDICION', 'CONDUCTOR')]:
     if col not in df_live.columns: 
         df_live[col] = defecto
 
-# Mapeo espacial individual
+# Mapeo espacial individual resolviendo el error 'unhashable type list'
 df_live['latitude'] = df_live['COD_NUM'].map(lambda x: DICCIONARIO_BOGOTA.get(x, {"coord": [4.60, -74.08]})["coord"][0])
 df_live['longitude'] = df_live['COD_NUM'].map(lambda x: DICCIONARIO_BOGOTA.get(x, {"coord": [4.60, -74.08]})["coord"][1])
 df_live['NOMBRE_LOCALIDAD'] = df_live['COD_NUM'].map(lambda x: DICCIONARIO_BOGOTA.get(x, {"nombre": "Desconocida"})["nombre"])
@@ -154,7 +160,6 @@ if len(df_filtrado.groupby('HORA_NUMERICA')) > 4:
             mapa_df['point_size'] = 120 + (mapa_df['count'] * 0.4)
             st.map(mapa_df, size='point_size', color='#D90429AA', zoom=10.1)
             
-            # --- MÓDULO DECISOR DE ASIGNACIÓN ESPACIAL CORREGIDO ---
             st.write("---")
             st.write("### 🎯 Direccionamiento Estratégico de Unidades")
             
@@ -175,22 +180,12 @@ if len(df_filtrado.groupby('HORA_NUMERICA')) > 4:
         else:
             st.warning("Sin novedades en la red para el cuz de filtros en esta hora.")
             
+    # --- DESGLOSE DEMOGRÁFICO AUTOMÁTICO ---
     st.write("---")
-    st.write(f"### 👥 Distribución Demográfica del Segmento Filtrado")
+    st.write("### 👥 Distribución Demográfica del Segmento Filtrado")
     col_bar, col_pie = st.columns(2)
     
     with col_bar:
         st.write("#### 📊 Afectaciones por Condición del Implicado")
         cond_counts = df_filtrado['CONDICION'].value_counts()
-        if not cond_counts.empty:
-            fig2, ax2 = plt.subplots(figsize=(8, 3.5))
-            cond_counts.plot(kind='bar', color='#4A90E2', ax=ax2)
-            plt.xticks(rotation=15)
-            st.pyplot(fig2)
-        else: st.caption("Sin datos.")
-            
-    with col_pie:
-        st.write("#### 🚻 Relación de Casos por Sexo")
-        sex_counts = df_filtrado['SEXO'].value_counts()
-        if not sex_counts.empty:
-
+        st.bar_chart(cond_counts, color='#4A90E2')
