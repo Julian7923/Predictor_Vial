@@ -27,7 +27,7 @@ DICCIONARIO_BOGOTA = {
     11: {"nombre": "Suba", "coord": [4.7600, -74.0900]},
     12: {"nombre": "Barrios Unidos", "coord": [4.6680, -74.0750]},
     13: {"nombre": "Teusaquillo", "coord": [4.6450, -74.0850]},
-    14: {"nombre": "Los Mártires", "coord": [4.6050, -74.0880], "id": 14},
+    14: {"nombre": "Los Mártires", "coord": [4.6050, -74.0880]},
     15: {"nombre": "Antonio Nariño", "coord": [4.5900, -74.1000]},
     16: {"nombre": "Puente Aranda", "coord": [4.6200, -74.1150]},
     17: {"nombre": "La Candelaria", "coord": [4.5960, -74.0720]},
@@ -70,9 +70,10 @@ if 'CLASE_ACCIDENTE' not in df_live.columns and 'CLASE' in df_live.columns:
     df_live['CLASE_ACCIDENTE'] = df_live['CLASE']
 
 for col, defecto in [('ACCIDENTE_CON', 'Todos'), ('CLASE_ACCIDENTE', 'Choque'), ('SEXO', 'MASCULINO'), ('CONDICION', 'CONDUCTOR')]:
-    if col not in df_live.columns: df_live[col] = defecto
+    if col not in df_live.columns: 
+        df_live[col] = defecto
 
-# Mapeo espacial corregido extrayendo los datos de forma individual del diccionario maestro
+# Mapeo espacial individual
 df_live['latitude'] = df_live['COD_NUM'].map(lambda x: DICCIONARIO_BOGOTA.get(x, {"coord": [4.60, -74.08]})["coord"][0])
 df_live['longitude'] = df_live['COD_NUM'].map(lambda x: DICCIONARIO_BOGOTA.get(x, {"coord": [4.60, -74.08]})["coord"][1])
 df_live['NOMBRE_LOCALIDAD'] = df_live['COD_NUM'].map(lambda x: DICCIONARIO_BOGOTA.get(x, {"nombre": "Desconocida"})["nombre"])
@@ -153,29 +154,29 @@ if len(df_filtrado.groupby('HORA_NUMERICA')) > 4:
             mapa_df['point_size'] = 120 + (mapa_df['count'] * 0.4)
             st.map(mapa_df, size='point_size', color='#D90429AA', zoom=10.1)
             
-            # --- NUEVO NUEVO: MÓDULO DECISOR DE ASIGNACIÓN ESPACIAL EN TIEMPO REAL ---
+            # --- MÓDULO DECISOR DE ASIGNACIÓN ESPACIAL CORREGIDO ---
             st.write("---")
             st.write("### 🎯 Direccionamiento Estratégico de Unidades")
             
-            # Agrupamos por nombre de localidad para extraer las zonas críticas en esta hora
             ranking_localidades = datos_hora.groupby('NOMBRE_LOCALIDAD').size().reset_index(name='CONTEO')
-            ranking_localidades = ranking_localidades.sort_values(by='CONTEO', ascending=False)
+            ranking_localidades = ranking_localidades.sort_values(by='CONTEO', ascending=False).reset_index(drop=True)
             
             if not ranking_localidades.empty:
-                top_1 = ranking_localidades.iloc[0]['NOMBRE_LOCALIDAD']
-                top_2 = ranking_localidades.iloc[1]['NOMBRE_LOCALIDAD'] if len(ranking_localidades) > 1 else "N/A"
-                top_3 = ranking_localidades.iloc[2]['NOMBRE_LOCALIDAD'] if len(ranking_localidades) > 2 else "N/A"
+                top_1 = ranking_localidades.loc[0, 'NOMBRE_LOCALIDAD']
+                conteo_1 = ranking_localidades.loc[0, 'CONTEO']
                 
-                st.success(f"🚑 **ASIGNACIÓN PRIORITARIA DE RECURSOS:** Basado en el flujo de la API para las {hora_mapa}:00 hrs, se ordena despachar las unidades móviles de emergencia hacia las siguientes zonas neurológicas:\n\n"
-                           f"1. **Sector Principal:** Localidad de **{top_1}** ({ranking_localidades.iloc[0]['CONTEO']} alertas activas).\n"
+                top_2 = ranking_localidades.loc[1, 'NOMBRE_LOCALIDAD'] if len(ranking_localidades) > 1 else "N/A"
+                top_3 = ranking_localidades.loc[2, 'NOMBRE_LOCALIDAD'] if len(ranking_localidades) > 2 else "N/A"
+                
+                st.success(f"🚑 **ASIGNACIÓN PRIORITARIA DE RECURSOS:** Basado en el flujo de la API para las {hora_mapa}:00 hrs, se ordena despachar las unidades móviles de emergencia hacia las siguientes zonas neurálgicas:\n\n"
+                           f"1. **Sector Principal:** Localidad de **{top_1}** ({conteo_1} alertas activas).\n"
                            f"2. **Sector Secundario:** Localidad de **{top_2}**.\n"
                            f"3. **Sector de Resguardo:** Localidad de **{top_3}**.")
-            # ------------------------------------------------------------------------
         else:
-            st.warning("Sin novedades en la red para el cruce de filtros en esta hora.")
+            st.warning("Sin novedades en la red para el cuz de filtros en esta hora.")
             
     st.write("---")
-    st.write(f"### 👥 Distribución Demográfica del Segmento Filtrado ({filtro_grav} / {filtro_clase})")
+    st.write(f"### 👥 Distribución Demográfica del Segmento Filtrado")
     col_bar, col_pie = st.columns(2)
     
     with col_bar:
@@ -186,3 +187,10 @@ if len(df_filtrado.groupby('HORA_NUMERICA')) > 4:
             cond_counts.plot(kind='bar', color='#4A90E2', ax=ax2)
             plt.xticks(rotation=15)
             st.pyplot(fig2)
+        else: st.caption("Sin datos.")
+            
+    with col_pie:
+        st.write("#### 🚻 Relación de Casos por Sexo")
+        sex_counts = df_filtrado['SEXO'].value_counts()
+        if not sex_counts.empty:
+
