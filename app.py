@@ -34,9 +34,16 @@ st.caption("Anticipamos la hora de mayor riesgo para enviar unidades de emergenc
 # ---------------------------------------------------------------------
 # 3. CONSTANTES DEL PROYECTO (se cambian aquí y afectan todo el programa)
 # ---------------------------------------------------------------------
-# API del portal Datos Abiertos Bogotá (CKAN). Es la dirección que el propio portal
-# publica en su sección "Data API". Si diera error 404, prueba quitando "/en" de la ruta.
-URL_API = "https://datosabiertos.bogota.gov.co/en/api/3/action/datastore_search"
+# API del portal Datos Abiertos Bogotá (CKAN). El portal responde 404 en algunas rutas,
+# así que probamos varias en orden hasta que una funcione.
+URLS_API = [
+    "https://datosabiertos.bogota.gov.co/api/3/action/datastore_search",
+    "https://datosabiertos.bogota.gov.co/en/api/3/action/datastore_search",
+    "https://datosabiertos.bogota.gov.co/es/api/3/action/datastore_search",
+]
+# Plan B: descarga directa del archivo CSV completo (pesa ~38 MB; luego nos quedamos con las últimas filas)
+URL_CSV_DIRECTO = ("https://datosabiertos.bogota.gov.co/dataset/8624f916-1db2-4c17-b669-19a19b35d1ca/"
+                   "resource/f5862aaa-4e1c-463e-94d5-f04db8164360/download/historico_siniestros_bogota_d.c_-.csv")
 ID_RECURSO = "f5862aaa-4e1c-463e-94d5-f04db8164360"   # identificador del CSV "Histórico Siniestros Bogotá D.C."
 LIMITE_REGISTROS = 8000        # cuántos registros descargamos (coincide con la muestra del documento)
 GRADO_POLINOMIO = 4            # grado del polinomio R(t) (cuártico, como en la metodología)
@@ -112,23 +119,43 @@ def buscar_columna(df, palabras, excluir=()):
 # ---------------------------------------------------------------------
 # 7. LECTURA DE DATOS: tres fuentes posibles
 # ---------------------------------------------------------------------
-def descargar_api():
-    """E (Extracción) del ETL: pide los últimos registros a la API del portal."""
+def consultar_ckan(url):
+    """Consulta UNA ruta de la API CKAN y devuelve las últimas filas como tabla."""
     cabeceras = {"User-Agent": "Mozilla/5.0"}  # algunos portales rechazan consultas sin identificarse
     # Primera consulta liviana: solo para saber cuántos registros existen en total
-    r1 = requests.get(URL_API, params={"resource_id": ID_RECURSO, "limit": 1},
-                      headers=cabeceras, timeout=20)
-    r1.raise_for_status()                                   # lanza error si el portal responde mal
+    r1 = requests.get(url, params={"resource_id": ID_RECURSO, "limit": 1}, headers=cabeceras, timeout=20)
+    r1.raise_for_status()                                   # lanza error si el portal responde mal (404, 500...)
     total = r1.json()["result"]["total"]                    # número total de filas del recurso
     # Segunda consulta: pedimos las ÚLTIMAS filas (normalmente las más recientes)
     desde = max(0, total - LIMITE_REGISTROS)                # posición desde la que empezamos a leer
-    r2 = requests.get(URL_API, params={"resource_id": ID_RECURSO, "limit": LIMITE_REGISTROS, "offset": desde},
+    r2 = requests.get(url, params={"resource_id": ID_RECURSO, "limit": LIMITE_REGISTROS, "offset": desde},
                       headers=cabeceras, timeout=60)
     r2.raise_for_status()
     registros = r2.json()["result"]["records"]              # lista de diccionarios (una fila cada uno)
     if not registros:
-        raise ValueError("La API respondió, pero sin registros.")
+        raise ValueError("la API respondió sin registros")
     return pd.DataFrame(registros)                          # lista de filas -> tabla
+
+
+def descargar_api():
+    """E (Extracción) del ETL: prueba cada ruta de la API y, si todas fallan, descarga el CSV directo."""
+    errores = []                                            # aquí anotamos por qué falló cada intento
+    for url in URLS_API:
+        try:
+            return consultar_ckan(url)                      # si funciona, terminamos aquí
+        except Exception as e:
+            errores.append(f"API {url.split('.co')[1][:8]}...: {str(e)[:60]}")
+    try:                                                    # Plan B: archivo CSV completo
+        r = requests.get(URL_CSV_DIRECTO, headers={"User-Agent": "Mozilla/5.0"}, timeout=180)
+        r.raise_for_status()
+        tabla = pd.read_csv(io.BytesIO(r.content), low_memory=False, encoding_errors="replace")
+        if tabla.shape[1] == 1:                             # si quedó en una columna, el separador era ";"
+            tabla = pd.read_csv(io.BytesIO(r.content), sep=";", low_memory=False, encoding_errors="replace")
+        return tabla.tail(LIMITE_REGISTROS)                 # nos quedamos con las últimas filas
+    except Exception as e:
+        errores.append(f"CSV directo: {str(e)[:60]}")
+    raise ValueError("No se pudo descargar de ninguna ruta. " + " | ".join(errores)
+                     + " -> usa la opción 'Subir archivo'.")
 
 
 def leer_archivo(contenido, nombre):
@@ -264,15 +291,15 @@ if st.sidebar.button("🔄 Recargar datos"):
 # 11. CARGA REAL: si algo falla, avisamos y usamos datos simulados (nunca en silencio)
 # ---------------------------------------------------------------------
 datos_reales = fuente != FUENTE_SIM
+detalle_error = None                                                      # aquí guardamos el motivo técnico si algo falla
 try:
     if archivo is not None:
         df_live = cargar_datos(fuente, archivo.getvalue(), archivo.name)
     else:
         df_live = cargar_datos(fuente)
 except Exception as error:
-    st.error(f"No se pudieron cargar los datos de «{fuente}»: {error}")
-    st.info("Para que la demo siga funcionando se usan datos SIMULADOS.")
-    df_live = cargar_datos(FUENTE_SIM)
+    detalle_error = str(error)                                            # guardamos el error para mostrarlo después, sin asustar
+    df_live = cargar_datos(FUENTE_SIM)                                    # la demo sigue funcionando con datos simulados
     datos_reales = False
 
 if df_live.empty:
@@ -283,7 +310,14 @@ if datos_reales:
     pct_coord = df_live["COORD_REAL"].mean() * 100                        # % de filas con coordenada real
     st.caption(f"✅ Datos reales: {len(df_live):,} registros válidos · "
                f"{pct_coord:.0f}% con coordenadas exactas (el resto se ubica en el centro de su localidad).")
-else:
+elif detalle_error:                                                       # falló la carga: UN solo aviso, claro y humano
+    st.warning("⚠️ **No pudimos conectar con el portal de Datos Abiertos de Bogotá.** "
+               "Por ahora ves datos **simulados** para mostrar cómo funciona la herramienta. "
+               "Para trabajar con datos reales, elige **«Subir archivo»** en la barra lateral "
+               "y sube el Excel del Anuario de Siniestralidad.")
+    with st.expander("Ver detalle técnico del error"):                    # desplegable: solo lo abre quien quiera
+        st.code(detalle_error)
+else:                                                                     # el usuario eligió simulados a propósito
     st.warning("⚠️ **DATOS SIMULADOS**: sirven para probar la interfaz, no representan la realidad de Bogotá.")
 
 # ---------------------------------------------------------------------
