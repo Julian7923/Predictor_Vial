@@ -1,4 +1,4 @@
-# =====================================================================
+
 # PREDICTOR INTELIGENTE DE RIESGO VIAL - BOGOTÁ
 # Proyecto de aula integrador - INGENIA - UNICAFAM
 #
@@ -10,11 +10,11 @@
 # CÓMO EJECUTARLO (en la terminal de VS Code):
 #   pip install streamlit pandas numpy sympy matplotlib requests openpyxl
 #   streamlit run predictor_vial.py
-# =====================================================================
 
-# ---------------------------------------------------------------------
+
+
 # 1. LIBRERÍAS
-# ---------------------------------------------------------------------
+
 import io                          # trata los bytes de un archivo subido como si fuera un archivo
 import unicodedata                 # permite quitar tildes (Usaquén -> USAQUEN)
 import numpy as np                 # cálculo numérico: ajuste del polinomio y arreglos
@@ -24,16 +24,16 @@ import sympy as sp                 # cálculo simbólico: derivadas exactas
 import matplotlib.pyplot as plt    # gráfica de la curva de riesgo
 import streamlit as st             # convierte el código en una página web interactiva
 
-# ---------------------------------------------------------------------
+
 # 2. CONFIGURACIÓN DE LA PÁGINA (debe ser la primera instrucción de Streamlit)
-# ---------------------------------------------------------------------
+
 st.set_page_config(page_title="Predictor Vial Bogotá", layout="wide")  # título de pestaña y ancho completo
 st.title("🚑 Predictor Inteligente de Riesgo Vial - Bogotá")           # título principal
 st.caption("Anticipamos la hora de mayor riesgo para enviar unidades de emergencia antes del pico.")
 
-# ---------------------------------------------------------------------
+
 # 3. CONSTANTES DEL PROYECTO (se cambian aquí y afectan todo el programa)
-# ---------------------------------------------------------------------
+
 # API del portal Datos Abiertos Bogotá (CKAN). El portal responde 404 en algunas rutas,
 # así que probamos varias en orden hasta que una funcione.
 URLS_API = [
@@ -55,19 +55,19 @@ FUENTE_ARCHIVO = "Subir archivo (Excel o CSV)"
 FUENTE_SIM = "Datos simulados (solo demo)"
 
 
-# ---------------------------------------------------------------------
+
 # 4. FUNCIÓN AUXILIAR: quitar tildes y pasar a mayúsculas
-# ---------------------------------------------------------------------
+
 def normalizar(texto):
     """Convierte 'Usaquén ' en 'USAQUEN' para poder comparar nombres sin errores."""
     sin_tildes = unicodedata.normalize("NFKD", str(texto)).encode("ascii", "ignore").decode()
     return sin_tildes.upper().strip()
 
 
-# ---------------------------------------------------------------------
+
 # 5. DICCIONARIO MAESTRO DE LOCALIDADES (código -> nombre y coordenadas del centro)
 #    Sirve para traducir códigos a nombres y, si faltan coordenadas reales, ubicar en el mapa
-# ---------------------------------------------------------------------
+
 DICCIONARIO_BOGOTA = {
     1: {"nombre": "Usaquén", "coord": [4.7420, -74.0300]},
     2: {"nombre": "Chapinero", "coord": [4.6540, -74.0500]},
@@ -104,10 +104,9 @@ NORM_A_NOMBRE.update({
 })
 
 
-# ---------------------------------------------------------------------
 # 6. FUNCIÓN AUXILIAR: encontrar una columna por palabras clave
 #    (los portales llaman distinto a la misma columna: HORA, HORA_ACC, Hora_Acc...)
-# ---------------------------------------------------------------------
+
 def buscar_columna(df, palabras, excluir=()):
     """Devuelve el nombre de la primera columna que contenga alguna de las palabras."""
     for col in df.columns:
@@ -128,9 +127,9 @@ def extraer_hora(serie):
     return pd.to_numeric(hora, errors="coerce")                           # texto -> número (lo ilegible queda NaN)
 
 
-# ---------------------------------------------------------------------
+
 # 7. LECTURA DE DATOS: tres fuentes posibles
-# ---------------------------------------------------------------------
+
 def consultar_ckan(url):
     """Consulta UNA ruta de la API CKAN y devuelve las últimas filas como tabla."""
     cabeceras = {"User-Agent": "Mozilla/5.0"}  # algunos portales rechazan consultas sin identificarse
@@ -202,9 +201,8 @@ def generar_simulado(n=3000):
     })
 
 
-# ---------------------------------------------------------------------
 # 8. LIMPIEZA (la T de ETL): deja una tabla estándar sin importar la fuente
-# ---------------------------------------------------------------------
+
 def limpiar(df_crudo):
     df = df_crudo.copy()                                                  # trabajamos sobre una copia, no sobre el original
     df.columns = [str(c).strip().upper() for c in df.columns]             # nombres de columna: sin espacios y en MAYÚSCULAS
@@ -276,9 +274,8 @@ def limpiar(df_crudo):
     return salida.reset_index(drop=True)                                  # reiniciamos el índice 0,1,2...
 
 
-# ---------------------------------------------------------------------
 # 9. CARGA CON CACHÉ: no vuelve a descargar mientras no pasen 10 minutos
-# ---------------------------------------------------------------------
+
 @st.cache_data(ttl=600, show_spinner="Cargando y limpiando datos...")
 def cargar_datos(fuente, contenido=None, nombre=""):
     if fuente == FUENTE_API:
@@ -290,9 +287,9 @@ def cargar_datos(fuente, contenido=None, nombre=""):
     return limpiar(crudo)
 
 
-# ---------------------------------------------------------------------
+
 # 10. BARRA LATERAL: fuente de datos
-# ---------------------------------------------------------------------
+
 st.sidebar.header("📡 Fuente de datos")
 fuente = st.sidebar.radio("¿De dónde vienen los datos?", [FUENTE_API, FUENTE_ARCHIVO, FUENTE_SIM])
 
@@ -307,9 +304,9 @@ if st.sidebar.button("🔄 Recargar datos"):
     st.cache_data.clear()                                                 # borra la caché
     st.rerun()                                                            # vuelve a ejecutar la app
 
-# ---------------------------------------------------------------------
+
 # 11. CARGA REAL: si algo falla, avisamos y usamos datos simulados (nunca en silencio)
-# ---------------------------------------------------------------------
+
 datos_reales = fuente != FUENTE_SIM
 detalle_error = None                                                      # aquí guardamos el motivo técnico si algo falla
 try:
@@ -340,9 +337,9 @@ elif detalle_error:                                                       # fall
 else:                                                                     # el usuario eligió simulados a propósito
     st.warning("⚠️ **DATOS SIMULADOS**: sirven para probar la interfaz, no representan la realidad de Bogotá.")
 
-# ---------------------------------------------------------------------
+
 # 12. FILTROS (solo aparecen los que la base realmente tiene)
-# ---------------------------------------------------------------------
+
 st.sidebar.write("---")
 st.sidebar.header("🎛️ Filtros")
 etiquetas = {
@@ -360,9 +357,9 @@ for columna, etiqueta in etiquetas.items():
 
 hora_mapa = st.sidebar.slider("Hora a mostrar en el mapa:", 0, 23, 14)    # línea de tiempo del mapa
 
-# ---------------------------------------------------------------------
+
 # 13. AGREGACIÓN: pares (t, n_t) = hora y cantidad de siniestros
-# ---------------------------------------------------------------------
+
 conteo = df_filtrado.groupby("HORA_NUMERICA").size().reindex(range(24), fill_value=0)  # horas sin datos cuentan como 0
 X = conteo.index.to_numpy()                                               # eje horizontal: horas 0..23
 Y = conteo.to_numpy()                                                     # eje vertical: siniestros por hora
@@ -371,9 +368,9 @@ if (Y > 0).sum() < 5:                                                     # mín
     st.warning("Con estos filtros hay menos de 5 horas con datos. Prueba con filtros más amplios.")
     st.stop()
 
-# ---------------------------------------------------------------------
+
 # 14. AJUSTE POLINÓMICO R(t) POR MÍNIMOS CUADRADOS  (ecuaciones 2 y 3 del documento)
-# ---------------------------------------------------------------------
+
 coeficientes = np.polyfit(X, Y, GRADO_POLINOMIO)                          # [a, b, c, d, e] que minimizan el error cuadrático
 f_riesgo = np.poly1d(coeficientes)                                        # convierte los coeficientes en una función evaluable
 
@@ -381,9 +378,9 @@ ss_res = np.sum((Y - f_riesgo(X)) ** 2)                                   # erro
 ss_tot = np.sum((Y - Y.mean()) ** 2)                                      # variación total de los datos
 r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0.0                           # coeficiente de determinación (1 = ajuste perfecto)
 
-# ---------------------------------------------------------------------
+
 # 15. CÁLCULO DIFERENCIAL CON SYMPY  (ecuaciones 4, 5 y 6 del documento)
-# ---------------------------------------------------------------------
+
 t = sp.Symbol("t")                                                        # t = hora del día (variable simbólica)
 R = sum(sp.Float(float(c)) * t ** (GRADO_POLINOMIO - i) for i, c in enumerate(coeficientes))  # arma R(t) = a·t⁴ + b·t³ + ...
 R1 = sp.diff(R, t)                                                        # primera derivada R'(t): ¿el riesgo sube o baja?
@@ -404,9 +401,9 @@ h_alerta, m_alerta = divmod(min_alerta, 60)
 
 hora_observada = int(conteo.idxmax())                                     # hora con más siniestros en los datos reales
 
-# ---------------------------------------------------------------------
+
 # 16. INDICADORES PRINCIPALES
-# ---------------------------------------------------------------------
+
 m1, m2, m3, m4 = st.columns(4)
 m1.metric("🕰️ Hora de mayor riesgo (modelo)", f"{h_pico:02d}:{m_pico:02d}")
 m2.metric(f"🚑 Hora de alerta ({VENTANA_MINUTOS} min antes)", f"{h_alerta:02d}:{m_alerta:02d}")
@@ -420,9 +417,9 @@ if pico_en_extremo:
 
 st.error(f"🚨 **ALERTA TEMPRANA:** enviar unidades preventivas a las {h_alerta:02d}:{m_alerta:02d} h.")
 
-# ---------------------------------------------------------------------
+
 # 17. DOS COLUMNAS: gráfica a la izquierda, mapa y ranking a la derecha
-# ---------------------------------------------------------------------
+
 col_izq, col_der = st.columns(2)
 
 with col_izq:
@@ -467,9 +464,9 @@ with col_der:
                       for i in range(len(nombres))]
             st.success("🚑 **Asignación prioritaria de recursos**\n\n" + "\n\n".join(lineas))
 
-# ---------------------------------------------------------------------
+
 # 18. DESGLOSE DEL SEGMENTO FILTRADO
-# ---------------------------------------------------------------------
+
 st.write("---")
 if "CONDICION" in df_filtrado.columns:
     st.write("### 👥 Siniestros por condición del implicado")
