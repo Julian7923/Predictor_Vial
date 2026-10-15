@@ -116,6 +116,18 @@ def buscar_columna(df, palabras, excluir=()):
     return None  # si no encuentra ninguna, devuelve None
 
 
+def extraer_hora(serie):
+    """Intenta sacar la hora (0-23) de una columna, sin importar si viene como hora o como fecha con hora."""
+    num = pd.to_numeric(serie, errors="coerce")                           # ¿la columna es numérica?
+    if num.notna().mean() > 0.5 and num.median() > 1e11:                  # números gigantes = fecha en milisegundos (formato ArcGIS)
+        fechas = pd.to_datetime(num, unit="ms", utc=True).dt.tz_convert("America/Bogota")  # pasamos a hora de Bogotá
+        return fechas.dt.hour.astype(float)
+    texto = serie.astype(str).str.strip()                                 # todo a texto para analizarlo igual
+    hora = texto.str.extract(r"(\d{1,2}):")[0]                            # "14:30" o "2018-05-04 14:30:00" -> toma "14"
+    hora = hora.fillna(texto.str.extract(r"^(\d{1,2})(?:\.0)?$")[0])      # "14" o "14.0" -> toma "14"
+    return pd.to_numeric(hora, errors="coerce")                           # texto -> número (lo ilegible queda NaN)
+
+
 # ---------------------------------------------------------------------
 # 7. LECTURA DE DATOS: tres fuentes posibles
 # ---------------------------------------------------------------------
@@ -198,13 +210,21 @@ def limpiar(df_crudo):
     df.columns = [str(c).strip().upper() for c in df.columns]             # nombres de columna: sin espacios y en MAYÚSCULAS
 
     # --- 8.1 Hora de ocurrencia (variable independiente t) ---
-    col_hora = buscar_columna(df, ["HORA"], excluir=["FECHA"])            # evitamos columnas tipo FECHA_HORA
-    if col_hora is None:
-        raise ValueError("No encontré una columna de hora. Columnas disponibles: " + ", ".join(df.columns))
-    texto = df[col_hora].astype(str).str.strip()                          # todo a texto para analizarlo igual
-    hora = texto.str.extract(r"(\d{1,2}):")[0]                            # formato "14:30" -> toma "14"
-    hora = hora.fillna(texto.str.extract(r"^(\d{1,2})(?:\.0)?$")[0])      # formato "14" o "14.0" -> toma "14"
-    hora = pd.to_numeric(hora, errors="coerce")                           # texto -> número (lo ilegible queda NaN)
+    # Probamos columnas en este orden: 1) HORA sola  2) FECHA_HORA  3) cualquier FECHA que traiga la hora
+    candidatas = ([c for c in df.columns if "HORA" in c and "FECHA" not in c]
+                  + [c for c in df.columns if "HORA" in c and "FECHA" in c]
+                  + [c for c in df.columns if "FECHA" in c and "HORA" not in c])
+    hora = None
+    for c in candidatas:
+        h = extraer_hora(df[c])
+        # Aceptamos la columna si la mayoría de valores dan una hora válida y NO son casi todos 00:00
+        # (una fecha sin hora se vería como medianoche en todas las filas y falsearía el análisis)
+        if h.between(0, 23).mean() > 0.5 and (h == 0).mean() < 0.9:
+            hora = h
+            break
+    if hora is None:
+        raise ValueError("La base no trae una hora utilizable (no hay columna de hora o solo trae la fecha). "
+                         "Columnas disponibles: " + ", ".join(df.columns))
     valida = hora.between(0, 23)                                          # solo horas entre 0 y 23 (NaN da False)
     df, hora = df[valida], hora[valida].astype(int)                       # descartamos filas inválidas (NO las convertimos en 12)
 
@@ -230,8 +250,8 @@ def limpiar(df_crudo):
     centro_lon = salida["NOMBRE_LOCALIDAD"].map(lambda n: NOMBRE_A_COORD.get(n, [np.nan, np.nan])[1])
     salida["latitude"], salida["longitude"] = centro_lat, centro_lon      # por defecto: centro de la localidad
     salida["COORD_REAL"] = False                                          # marca para saber qué filas tienen coordenada real
-    col_lat = buscar_columna(df, ["LATITUD", "LATITUDE"])
-    col_lon = buscar_columna(df, ["LONGITUD", "LONGITUDE"])
+    col_lat = buscar_columna(df, ["LATITUD", "LATITUDE"]) or ("Y" if "Y" in df.columns else None)   # algunas bases llaman Y a la latitud
+    col_lon = buscar_columna(df, ["LONGITUD", "LONGITUDE"]) or ("X" if "X" in df.columns else None)  # y X a la longitud
     if col_lat and col_lon:
         lat = pd.to_numeric(df[col_lat].astype(str).str.replace(",", ".", regex=False), errors="coerce")  # "4,60" -> 4.60
         lon = pd.to_numeric(df[col_lon].astype(str).str.replace(",", ".", regex=False), errors="coerce")
@@ -316,7 +336,7 @@ elif detalle_error:                                                       # fall
                "Para trabajar con datos reales, elige **«Subir archivo»** en la barra lateral "
                "y sube el Excel del Anuario de Siniestralidad.")
     with st.expander("Ver detalle técnico del error"):                    # desplegable: solo lo abre quien quiera
-        st.code(detalle_error)
+        st.caption(detalle_error)                                           # caption hace salto de línea (st.code se cortaba)
 else:                                                                     # el usuario eligió simulados a propósito
     st.warning("⚠️ **DATOS SIMULADOS**: sirven para probar la interfaz, no representan la realidad de Bogotá.")
 
