@@ -53,8 +53,9 @@ VENTANA_MINUTOS = 30           # minutos de anticipación para la alerta
 FUENTE_API = "API en línea (Datos Abiertos Bogotá)"
 FUENTE_ARCHIVO = "Subir archivo (Excel o CSV)"
 FUENTE_SIM = "Datos simulados (solo demo)"
-
-
+HEADERS_PETICION = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+}
 # ---------------------------------------------------------------------
 # 4. FUNCIÓN AUXILIAR: quitar tildes y pasar a mayúsculas
 # ---------------------------------------------------------------------
