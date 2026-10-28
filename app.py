@@ -296,7 +296,24 @@ if st.sidebar.button("🔄 Actualizar datos"):
 df_live = obtener_datos_en_linea()
 pct_coord = df_live["COORD_REAL"].mean() * 100 if "COORD_REAL" in df_live.columns else 100.0
 
-st.caption(f"✅ Conexión establecida · {len(df_live):,} eventos analizados · {pct_coord:.0f}% georreferenciados.")
+# CÓDIGO ACTUALIZADO:
+def obtener_rango_fechas(df):
+    """Extrae el rango mínimo y máximo de fechas formateado."""
+    for col in ["FECHA", "FECHA_OCURRENCIA", "FECHA_HORA", "FECHA_SINIESTRO"]:
+        if col in df.columns and df[col].notna().any():
+            f = pd.to_datetime(df[col], errors="coerce")
+            f_validas = f.dropna()
+            if not f_validas.empty:
+                return f"{f_validas.min():%d/%m/%Y} al {f_validas.max():%d/%m/%Y}"
+    return "Periodo 2021 (Censo Oficial Consolidado)"
+
+periodo_str = obtener_rango_fechas(df_live)
+
+st.caption(
+    f"✅ **Conexión activa:** {len(df_live):,} registros depurados · {pct_coord:.0f}% georreferenciados | "
+    f"📅 **Periodo:** {periodo_str} | "
+    f"🏛️ **Fuente:** Secretaría Distrital de Movilidad / Datos Abiertos Bogotá"
+)
 
 # ---------------------------------------------------------------------
 # 11. FILTROS DINÁMICOS
@@ -416,3 +433,15 @@ with col_der:
 # ---------------------------------------------------------------------
 st.write("---")
 st.caption("Conexión en línea activa. Modelo predictivo circadiano de riesgo vial para Bogotá D.C.")
+
+# ---------------------------------------------------------------------
+# PIE DE PÁGINA Y DOCUMENTACIÓN METODOLÓGICA
+# ---------------------------------------------------------------------
+st.write("---")
+st.caption(
+    "📊 **Trazabilidad de la Información:** "
+    "Muestra analítica georreferenciada ($N = 8,000$) proveniente del Portal de Datos Abiertos de Bogotá "
+    "y la Secretaría Distrital de Movilidad (Anuario de Siniestralidad Vial). "
+    "El algoritmo evalúa el ciclo circadiano diurno mediante aproximación polinómica y cálculo diferencial "
+    "para el despacho preventivo de unidades de emergencia, no una estimación de tráfico en tiempo real."
+)
