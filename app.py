@@ -53,9 +53,8 @@ VENTANA_MINUTOS = 30           # minutos de anticipación para la alerta
 FUENTE_API = "API en línea (Datos Abiertos Bogotá)"
 FUENTE_ARCHIVO = "Subir archivo (Excel o CSV)"
 FUENTE_SIM = "Datos simulados (solo demo)"
-HEADERS_PETICION = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-}
+
+
 # ---------------------------------------------------------------------
 # 4. FUNCIÓN AUXILIAR: quitar tildes y pasar a mayúsculas
 # ---------------------------------------------------------------------
@@ -302,10 +301,15 @@ def limpiar(df_crudo):
 # ---------------------------------------------------------------------
 # 9. CARGA CON CACHÉ: no vuelve a descargar mientras no pasen 10 minutos
 # ---------------------------------------------------------------------
+@st.cache_data(ttl=600, show_spinner="Descargando datos del portal...")
+def descargar_api_cached():
+    return descargar_api()                                                # misma descarga, guardada en caché 10 min
+
+
 @st.cache_data(ttl=600, show_spinner="Cargando y limpiando datos...")
 def cargar_datos(fuente, contenido=None, nombre=""):
     if fuente == FUENTE_API:
-        crudo = descargar_api()
+        crudo = descargar_api_cached()
     elif fuente == FUENTE_ARCHIVO:
         crudo = leer_archivo(contenido, nombre)
     else:
@@ -345,6 +349,11 @@ except Exception as error:
     df_live = cargar_datos(FUENTE_SIM)                                    # la demo sigue funcionando con datos simulados
     datos_reales = False
 
+if datos_reales and fuente == FUENTE_API:                                 # exportar la muestra cruda que analiza el tablero
+    st.sidebar.write("---")
+    st.sidebar.download_button("⬇️ Download raw sample (CSV)", descargar_api_cached().to_csv(index=False).encode("utf-8"),
+                               file_name="raw_sample_snapshot.csv", mime="text/csv")
+
 if df_live.empty:
     st.error("Después de la limpieza no quedaron registros válidos.")
     st.stop()
@@ -366,7 +375,7 @@ def mostrar_pie():
     if fuente == FUENTE_ARCHIVO and archivo is not None:                  # archivo subido por el usuario
         origen = f"archivo cargado por el usuario ({archivo.name})"
     else:                                                                 # descarga desde el portal
-        origen = ("«Histórico Siniestros Bogotá D.C.», Secretaría Distrital de Movilidad, "
+        origen = ("«Histórico Siniestros Bogotá D.C.», Alcaldía Mayor de Bogotá, "
                   "Portal de Datos Abiertos Bogotá (datosabiertos.bogota.gov.co)")
     st.caption(f"📅 **Periodo de los datos:** {texto_periodo()}  ·  🗂️ **Fuente:** {origen}  ·  "
                f"🔢 **Muestra:** {len(df_live):,} registros")
