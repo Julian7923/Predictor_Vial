@@ -1,6 +1,7 @@
 # =====================================================================
 # PREDICTOR INTELIGENTE DE RIESGO VIAL - BOGOTÁ
 # Proyecto de Aula Integrador INGENIA - UNICAFAM
+# Cálculo Diferencial & Analítica de Datos
 # =====================================================================
 
 import io
@@ -13,10 +14,17 @@ import matplotlib.pyplot as plt
 import streamlit as st
 
 # ---------------------------------------------------------------------
-# 1. CONFIGURACIÓN DE PÁGINA
+# 1. CONFIGURACIÓN Y ESTILOS DE LA PÁGINA
 # ---------------------------------------------------------------------
-st.set_page_config(page_title="Predictor Vial Bogotá", page_icon="🚑", layout="wide")
+st.set_page_config(
+    page_title="Predictor Vial Bogotá",
+    page_icon="🚑",
+    layout="wide"
+)
 
+# ---------------------------------------------------------------------
+# 2. CONSTANTES GLOBALES DEL MODELO
+# ---------------------------------------------------------------------
 LIMITE_REGISTROS = 8000
 GRADO_POLINOMIO = 4
 VENTANA_MINUTOS = 30
@@ -44,7 +52,11 @@ DICCIONARIO_BOGOTA = {
     20: {"nombre": "Sumapaz", "coord": [4.0100, -74.3200]},
 }
 
+# ---------------------------------------------------------------------
+# 3. FUNCIONES AUXILIARES DE NORMALIZACIÓN
+# ---------------------------------------------------------------------
 def normalizar(texto):
+    """Convierte texto eliminando tildes y pasando a mayúsculas."""
     sin_tildes = unicodedata.normalize("NFKD", str(texto)).encode("ascii", "ignore").decode()
     return sin_tildes.upper().strip()
 
@@ -52,8 +64,10 @@ CODIGO_A_NOMBRE = {cod: d["nombre"] for cod, d in DICCIONARIO_BOGOTA.items()}
 NOMBRE_A_COORD = {d["nombre"]: d["coord"] for d in DICCIONARIO_BOGOTA.values()}
 NORM_A_NOMBRE = {normalizar(d["nombre"]): d["nombre"] for d in DICCIONARIO_BOGOTA.values()}
 NORM_A_NOMBRE.update({
-    "RAFAEL URIBE": "Rafael Uribe Uribe", "CANDELARIA": "La Candelaria",
-    "MARTIRES": "Los Mártires", "SANTAFE": "Santa Fe"
+    "RAFAEL URIBE": "Rafael Uribe Uribe",
+    "CANDELARIA": "La Candelaria",
+    "MARTIRES": "Los Mártires",
+    "SANTAFE": "Santa Fe"
 })
 
 def buscar_columna(df, palabras, excluir=()):
@@ -86,12 +100,24 @@ def extraer_fecha(serie):
         return pd.Series(pd.NaT, index=serie.index)
 
 # ---------------------------------------------------------------------
-# 2. INGESTA Y ETL
+# 4. INGESTA Y CONSULTA EN LÍNEA RESILIENTE
 # ---------------------------------------------------------------------
 ENDPOINTS_ONLINE = [
-    {"tipo": "soda", "url": "https://www.datos.gov.co/resource/vftc-p83w.json", "params": {"$limit": LIMITE_REGISTROS}},
-    {"tipo": "csv_web", "url": "https://raw.githubusercontent.com/julianherrerapineda/predictor-vial/main/data/historico_siniestros_bogota.csv"},
-    {"tipo": "csv_web", "url": "https://raw.githubusercontent.com/julianherrerapineda/predictor-vial/main/UNICAFAM_DataAnalytics_D2_Data.csv"}
+    {
+        "tipo": "soda",
+        "url": "https://www.datos.gov.co/resource/vftc-p83w.json",
+        "params": {"$limit": LIMITE_REGISTROS}
+    },
+    {
+        "tipo": "csv_web",
+        "url": "https://raw.githubusercontent.com/julianherrerapineda/predictor-vial/main/data/historico_siniestros_bogota.csv",
+        "params": {}
+    },
+    {
+        "tipo": "csv_web",
+        "url": "https://raw.githubusercontent.com/julianherrerapineda/predictor-vial/main/UNICAFAM_DataAnalytics_D2_Data.csv",
+        "params": {}
+    }
 ]
 
 def descargar_datos():
@@ -113,11 +139,13 @@ def descargar_datos():
         except Exception:
             continue
 
-    # Respaldo empírico
+    # Respaldo empírico matemático si fallan las conexiones remotas
     rng = np.random.default_rng(42)
     horas = np.arange(24)
-    pesos = np.array([108, 90, 55, 62, 78, 215, 310, 415, 388, 405, 425, 440,
-                      520, 555, 545, 540, 510, 475, 395, 420, 412, 275, 210, 142], dtype=float)
+    pesos = np.array([
+        108, 90, 55, 62, 78, 215, 310, 415, 388, 405, 425, 440,
+        520, 555, 545, 540, 510, 475, 395, 420, 412, 275, 210, 142
+    ], dtype=float)
     pesos /= pesos.sum()
     nombres = [d["nombre"] for d in DICCIONARIO_BOGOTA.values()]
     fechas_generadas = pd.date_range("2021-01-01", periods=LIMITE_REGISTROS, freq="45min")
@@ -132,6 +160,9 @@ def descargar_datos():
         "COORD_REAL": True
     })
 
+# ---------------------------------------------------------------------
+# 5. PIPELINE ETL Y LIMPIEZA
+# ---------------------------------------------------------------------
 def limpiar(df_crudo):
     df = df_crudo.copy()
     df.columns = [str(c).strip().upper() for c in df.columns]
@@ -164,7 +195,7 @@ def limpiar(df_crudo):
     if "FECHA" not in salida.columns or salida["FECHA"].isna().all():
         salida["FECHA"] = pd.date_range("2021-01-01", periods=len(salida), freq="45min")
 
-    # Días de la semana en español
+    # Mapeo del día de la semana
     dias_es = {0: "Lunes", 1: "Martes", 2: "Miércoles", 3: "Jueves", 4: "Viernes", 5: "Sábado", 6: "Domingo"}
     salida["DIA_SEMANA"] = salida["FECHA"].dt.dayofweek.map(dias_es)
 
@@ -207,7 +238,7 @@ def cargar_datos():
 df_live = cargar_datos()
 
 # ---------------------------------------------------------------------
-# 3. ENCABEZADO DESTACADO
+# 6. ENCABEZADO DESTACADO (TAMAÑO LEGIBLE Y FUENTE)
 # ---------------------------------------------------------------------
 st.title("🚑 Predictor Inteligente de Riesgo Vial — Bogotá D.C.")
 st.markdown("""
@@ -219,46 +250,69 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------
-# 4. BARRA LATERAL CON FILTROS DINÁMICOS DE DÍA Y HORA
+# 7. BARRA LATERAL CON FILTROS DINÁMICOS Y PROTECCIÓN CONTRA KEYERROR
 # ---------------------------------------------------------------------
 st.sidebar.header("🎛️ Filtros Interactivos")
 
-# Filtro 1: Día de la semana (actualiza la curva R(t))
-dias_disponibles = ["Todos los días", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+# Filtro 1: Día de la semana (actualiza la regresión R(t))
+if "DIA_SEMANA" in df_live.columns:
+    dias_orden = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+    dias_presentes = [d for d in dias_orden if d in df_live["DIA_SEMANA"].unique()]
+    dias_disponibles = ["Todos los días"] + dias_presentes
+else:
+    dias_disponibles = ["Todos los días"]
 dia_sel = st.sidebar.selectbox("📅 Selecciona el día de la semana:", dias_disponibles)
 
-# Filtro 2: Hora del día (actualiza el mapa y priorización)
+# Filtro 2: Hora del día (actualiza el mapa y la asignación prioritaria)
 hora_sel = st.sidebar.slider("🕒 Selecciona la hora (0 a 23 h):", 0, 23, 14)
 
-# Filtros contextuales
 st.sidebar.write("---")
-opc_grav = ["Todos"] + sorted(df_live["ACCIDENTE_CON"].dropna().unique())
-sel_grav = st.sidebar.selectbox("Gravedad del siniestro:", opc_grav)
 
-opc_clase = ["Todos"] + sorted(df_live["CLASE_ACCIDENTE"].dropna().unique())
-sel_clase = st.sidebar.selectbox("Clase de choque:", opc_clase)
+# Filtro 3: Gravedad del siniestro (protegido)
+sel_grav = "Todos"
+if "ACCIDENTE_CON" in df_live.columns:
+    opc_grav = ["Todos"] + sorted(df_live["ACCIDENTE_CON"].dropna().unique())
+    sel_grav = st.sidebar.selectbox("Gravedad del siniestro:", opc_grav)
+elif "GRAVEDAD" in df_live.columns:
+    opc_grav = ["Todos"] + sorted(df_live["GRAVEDAD"].dropna().unique())
+    sel_grav = st.sidebar.selectbox("Gravedad del siniestro:", opc_grav)
 
-# Aplicación de filtros
+# Filtro 4: Clase de choque (protegido)
+sel_clase = "Todos"
+if "CLASE_ACCIDENTE" in df_live.columns:
+    opc_clase = ["Todos"] + sorted(df_live["CLASE_ACCIDENTE"].dropna().unique())
+    sel_clase = st.sidebar.selectbox("Clase de choque:", opc_clase)
+elif "CLASE" in df_live.columns:
+    opc_clase = ["Todos"] + sorted(df_live["CLASE"].dropna().unique())
+    sel_clase = st.sidebar.selectbox("Clase de choque:", opc_clase)
+
+# Aplicación segura de filtros sobre el DataFrame
 df_curva = df_live.copy()
-if dia_sel != "Todos los días":
+if dia_sel != "Todos los días" and "DIA_SEMANA" in df_curva.columns:
     df_curva = df_curva[df_curva["DIA_SEMANA"] == dia_sel]
+
 if sel_grav != "Todos":
-    df_curva = df_curva[df_curva["ACCIDENTE_CON"] == sel_grav]
+    col_g = "ACCIDENTE_CON" if "ACCIDENTE_CON" in df_curva.columns else "GRAVEDAD"
+    if col_g in df_curva.columns:
+        df_curva = df_curva[df_curva[col_g] == sel_grav]
+
 if sel_clase != "Todos":
-    df_curva = df_curva[df_curva["CLASE_ACCIDENTE"] == sel_clase]
+    col_c = "CLASE_ACCIDENTE" if "CLASE_ACCIDENTE" in df_curva.columns else "CLASE"
+    if col_c in df_curva.columns:
+        df_curva = df_curva[df_curva[col_c] == sel_clase]
 
 # ---------------------------------------------------------------------
-# 5. MODELADO DE CÁLCULO DIFERENCIAL (SE RECALCULA SEGÚN EL DÍA)
+# 8. CÁLCULO DIFERENCIAL Y OPTIMIZACIÓN (SE RECALCULA POR DÍA)
 # ---------------------------------------------------------------------
 conteo = df_curva.groupby("HORA_NUMERICA").size().reindex(range(24), fill_value=0)
 X = conteo.index.to_numpy()
 Y = conteo.to_numpy()
 
 if (Y > 0).sum() < 5:
-    st.warning("Pocos datos para este día o combinación de filtros. Selecciona 'Todos los días'.")
+    st.warning("Pocos datos para los filtros seleccionados. Selecciona 'Todos los días'.")
     st.stop()
 
-# Ajuste polinómico
+# Ajuste polinómico cuártico por mínimos cuadrados
 coef = np.polyfit(X, Y, GRADO_POLINOMIO)
 f_riesgo = np.poly1d(coef)
 
@@ -266,7 +320,7 @@ ss_res = np.sum((Y - f_riesgo(X)) ** 2)
 ss_tot = np.sum((Y - Y.mean()) ** 2)
 r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0.0
 
-# Derivadas
+# Derivación simbólica con SymPy
 t = sp.Symbol('t')
 R_expr = sum(sp.Float(float(c)) * t ** (GRADO_POLINOMIO - i) for i, c in enumerate(coef))
 R1 = sp.diff(R_expr, t)
@@ -275,6 +329,7 @@ R2 = sp.diff(R_expr, t, 2)
 raices = [complex(r) for r in sp.Poly(R1, t).nroots()]
 reales = [r.real for r in raices if abs(r.imag) < 1e-6 and 0 <= r.real <= 23]
 maximos = [r for r in reales if float(R2.subs(t, r)) < 0]
+
 candidatos = maximos + [0.0, 23.0]
 t_pico = max(candidatos, key=lambda val: float(f_riesgo(val)))
 
@@ -282,40 +337,55 @@ min_pico = round(t_pico * 60)
 h_pico, m_pico = divmod(min_pico, 60)
 min_alerta = (min_pico - VENTANA_MINUTOS) % 1440
 h_alerta, m_alerta = divmod(min_alerta, 60)
-hora_moda = int(conteo.idxmax())
 
-# Banner preventivo dinámico
-st.error(f"🚨 **ALERTA PREVENTIVA ({dia_sel.upper()}):** Enviar unidades a las **{h_alerta:02d}:{m_alerta:02d} h** (30 min antes del pico de las **{h_pico:02d}:{m_pico:02d} h**).")
+# Banner de alerta dinámico
+st.error(f"🚨 **ALERTA PREVENTIVA ({dia_sel.upper()}):** Enviar ambulancias a las **{h_alerta:02d}:{m_alerta:02d} h** (30 minutos antes del pico crítico de las **{h_pico:02d}:{m_pico:02d} h**).")
 
 # ---------------------------------------------------------------------
-# 6. MÉTRICAS DINÁMICAS
+# 9. TARJETAS DE MÉTRICAS EXPLICATIVAS
 # ---------------------------------------------------------------------
 c1, c2, c3, c4 = st.columns(4)
-c1.metric("🕰️ Pico Crítico", f"{h_pico:02d}:{m_pico:02d} h", help="Máximo analítico R'(t)=0")
+c1.metric("🕰️ Pico Crítico", f"{h_pico:02d}:{m_pico:02d} h", help="Máximo donde R'(t)=0 y R''(t)<0")
 c2.metric("🚑 Salida Preventiva", f"{h_alerta:02d}:{m_alerta:02d} h", help="Alerta temprana 30 min antes")
-c3.metric("📐 Ajuste r²", f"{r2:.1%}", help="Capacidad explicativa de la curva")
-c4.metric(f"📊 Accidentes a las {hora_sel:02d}:00 h", f"{Y[hora_sel]} casos", help="Eventos registrados a la hora seleccionada")
+c3.metric("📐 Ajuste de Curva (r²)", f"{r2:.1%}", help="Capacidad explicativa del modelo polinómico")
+c4.metric(f"📊 Siniestros a las {hora_sel:02d}:00 h", f"{Y[hora_sel]} casos", help="Eventos registrados a la hora inspeccionada")
 
 st.write("---")
 
 # ---------------------------------------------------------------------
-# 7. GRÁFICAS SINCRONIZADAS: CURVA Y MAPA
+# 10. GRÁFICAS SINCRONIZADAS: CURVA AUTOEXPLICATIVA Y MAPA
 # ---------------------------------------------------------------------
 col_graf, col_map = st.columns([1.1, 0.9])
 
 with col_graf:
     st.subheader(f"📈 Curva de Riesgo R(t) — {dia_sel}")
     fig, ax = plt.subplots(figsize=(9, 5.2))
-    ax.axvspan(12, 16, color="#ffedd5", alpha=0.5, label="Franja de meseta crítica")
+    
+    # Sombreado de franja crítica diurna
+    ax.axvspan(12, 16, color="#ffedd5", alpha=0.5, label="Franja de meseta crítica (12 a 16 h)")
     ax.scatter(X, Y, color="#1e293b", s=40, zorder=3, label=f"Siniestros ({dia_sel})")
     
     x_suave = np.linspace(0, 23, 500)
-    ax.plot(x_suave, f_riesgo(x_suave), color="#0284c7", linewidth=2.5, label="Función suave R(t)")
-    ax.axvline(x=t_pico, color="#b91c1c", linestyle="--", linewidth=2, label=f"Pico ({h_pico:02d}:{m_pico:02d})")
+    y_suave = f_riesgo(x_suave)
+    ax.plot(x_suave, y_suave, color="#0284c7", linewidth=2.5, label="Función continua R(t)")
+    
+    # Líneas analíticas
+    ax.axvline(x=t_pico, color="#b91c1c", linestyle="--", linewidth=2, label=f"Pico R'(t)=0 ({h_pico:02d}:{m_pico:02d})")
     ax.axvline(x=t_pico - 0.5, color="#d97706", linestyle=":", linewidth=2, label=f"Alerta ({h_alerta:02d}:{m_alerta:02d})")
     
-    # Marcador de la hora actual seleccionada en el slider
+    # Línea de la hora seleccionada en el slider
     ax.axvline(x=hora_sel, color="#16a34a", linestyle="-", linewidth=1.5, label=f"Hora inspeccionada ({hora_sel:02d}:00 h)")
+
+    # Flecha y etiqueta en la cresta
+    y_pico_val = float(f_riesgo(t_pico))
+    ax.annotate(
+        f"Máximo analítico\n{h_pico:02d}:{m_pico:02d} h",
+        xy=(t_pico, y_pico_val),
+        xytext=(max(0, t_pico - 4.5), y_pico_val + max(5, Y.max() * 0.08)),
+        arrowprops=dict(facecolor="#b91c1c", shrink=0.08, width=1.2, headwidth=6),
+        fontsize=8.5, fontweight="bold", color="#7f1d1d",
+        bbox=dict(boxstyle="round,pad=0.3", fc="#fee2e2", ec="#b91c1c", lw=1)
+    )
 
     ax.set_xlim(-0.5, 23.5)
     ax.set_ylim(bottom=0)
@@ -329,7 +399,7 @@ with col_graf:
     plt.close(fig)
 
 with col_map:
-    st.subheader(f"🗺️ Mapa a las {hora_sel:02d}:00 h ({dia_sel})")
+    st.subheader(f"🗺️ Concentración a las {hora_sel:02d}:00 h ({dia_sel})")
     datos_mapa = df_curva[df_curva["HORA_NUMERICA"] == hora_sel].dropna(subset=["latitude", "longitude"])
     
     if datos_mapa.empty:
@@ -341,7 +411,7 @@ with col_map:
         mapa_df["point_size"] = 150 + 1200 * mapa_df["count"] / mapa_df["count"].max()
         st.map(mapa_df, size="point_size", color="#dc2626aa", zoom=10.2)
 
-        st.markdown("#### 🎯 Prioridad de Ambulancias")
+        st.markdown("#### 🎯 Prioridad de Despacho Territorial")
         top_loc = datos_mapa[datos_mapa["NOMBRE_LOCALIDAD"] != "Desconocida"]["NOMBRE_LOCALIDAD"].value_counts().head(3)
         if not top_loc.empty:
             cols_r = st.columns(len(top_loc))
@@ -349,3 +419,12 @@ with col_map:
             for i, (nom_loc, cant) in enumerate(top_loc.items()):
                 with cols_r[i]:
                     st.metric(medallas[i], nom_loc, f"{cant} eventos")
+
+# ---------------------------------------------------------------------
+# 11. PIE DE PÁGINA METODOLÓGICO
+# ---------------------------------------------------------------------
+st.write("---")
+st.caption(
+    "📊 **Trazabilidad Institucional:** Registros georreferenciados consolidados de la Secretaría Distrital de Movilidad "
+    "(1 de enero al 31 de octubre de 2021). Modelo analítico circadiano para la programación preventiva de emergencias viales."
+)
