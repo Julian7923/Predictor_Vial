@@ -286,7 +286,22 @@ utilizando derivadas para ubicar el minuto crítico de máxima accidentalidad y 
 """)
 
 periodo_str = "1 de enero al 31 de octubre de 2021 (Censo Consolidado SDM)"
-st.caption(f"📍 **Fuente:** Secretaría Distrital de Movilidad / Datos Abiertos Bogotá | 📅 **Periodo muestreado:** {periodo_str} | 🔢 **Registros evaluados:** {len(df_live):,}")
+st.markdown("""
+<div style="
+    background-color: #1e293b; 
+    color: #f1f5f9; 
+    padding: 14px 18px; 
+    border-radius: 8px; 
+    border-left: 6px solid #38bdf8; 
+    font-size: 1.05rem; 
+    line-height: 1.6; 
+    margin: 10px 0 16px 0;
+">
+    <b>🏛️ Fuente Oficial:</b> Secretaría Distrital de Movilidad / Portal de Datos Abiertos de Bogotá<br>
+    <b>📅 Periodo de los Datos:</b> <span style="color: #38bdf8; font-weight: bold;">1 de enero al 31 de octubre de 2021</span> <i>(Censo Consolidado SDM)</i><br>
+    <b>🔢 Muestra Analítica:</b> 8,000 registros georreferenciados depurados
+</div>
+""", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------
 # 7. BARRA LATERAL Y FILTROS
