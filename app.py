@@ -261,6 +261,13 @@ if "CLASE_ACCIDENTE" in df_live.columns:
     opciones_c = ["Todos"] + sorted(df_live["CLASE_ACCIDENTE"].dropna().unique())
     sel_clase = st.sidebar.selectbox("Clase de siniestro:", opciones_c)
 
+# Filtro 5: Localidad (protegido contra valores nulos)
+sel_loc = "Todas las localidades"
+if "NOMBRE_LOCALIDAD" in df_live.columns:
+    locs_disp = sorted([l for l in df_live["NOMBRE_LOCALIDAD"].dropna().unique() if l != "Desconocida"])
+    opciones_loc = ["Todas las localidades"] + locs_disp
+    sel_loc = st.sidebar.selectbox("📍 Selecciona la localidad:", opciones_loc)
+
 # Aplicación de filtros
 df_curva = df_live.copy()
 if dia_sel != "Todos los días" and "DIA_SEMANA" in df_curva.columns:
