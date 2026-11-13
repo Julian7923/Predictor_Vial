@@ -22,7 +22,6 @@ st.set_page_config(
     layout="wide"
 )
 
-# Constantes del modelo
 LIMITE_REGISTROS = 8000
 GRADO_POLINOMIO = 4
 VENTANA_MINUTOS = 30
@@ -121,7 +120,6 @@ def descargar_datos():
         except Exception:
             continue
 
-    # Fallback con distribución oficial
     rng = np.random.default_rng(42)
     horas = np.arange(24)
     pesos = np.array([108, 90, 55, 62, 78, 215, 310, 415, 388, 405, 425, 440,
@@ -221,6 +219,7 @@ df_live = cargar_datos()
 # ---------------------------------------------------------------------
 st.sidebar.header("🎛️ Filtros Interactivos")
 
-# Filtro 1: Localidad
 sel_loc = "Todas las localidades"
 if "NOMBRE_LOCALIDAD" in df_live.columns:
+    locs_disp = sorted([l for l in df_live["NOMBRE_LOCALIDAD"].dropna().unique() if l != "Desconocida"])
+    opciones_loc = ["Todas las localidades"] + locs_disp
