@@ -371,7 +371,7 @@ with col_graf:
 
     # LEYENDA PEDAGÓGICA AUTOEXPLICATIVA
     st.info("""
-    **💡 ¿Cómo interpretar esta gráfica ante el docente o jurado?**
+    **💡 Interpretacion**
     * **Puntos negros:** Son los datos agrupados por hora (valores discretos).
     * **Curva azul continua $R(t)$:** Modela matemáticamente cómo sube y baja el riesgo en cualquier fracción de minuto.
     * **Línea roja discontinua:** Es la cima encontrada con cálculo diferencial donde la tasa de cambio es cero ($R'(t)=0$) y la curva es cóncava hacia abajo ($R''(t)<0$).
