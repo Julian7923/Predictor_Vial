@@ -235,7 +235,7 @@ def load_pipeline():
 
 df_master, audit_info = load_pipeline()
 
-```python
+
 st.sidebar.title("🧭 BI Navigation")
 dashboard_choice = st.sidebar.radio(
     "Select Audience View:",
