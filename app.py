@@ -1,7 +1,8 @@
 # =====================================================================
-# PREDICTOR INTELIGENTE DE RIESGO VIAL - BOGOTÁ
-# Proyecto de Aula Integrador INGENIA - UNICAFAM
-# Cálculo Diferencial & Analítica de Datos
+# INTELLIGENT ROAD RISK PREDICTOR — BOGOTÁ D.C.
+# UNICAFAM · Introduction to Data Analytics · Deliverable 3 (BI & Storytelling)
+# Authors: José Julián Herrera Pineda & Deglym Sneider Ossa Parra
+# Advisor: Omar Otalora Barreto, PhD
 # =====================================================================
 
 import io
@@ -14,399 +15,206 @@ import matplotlib.pyplot as plt
 import streamlit as st
 
 # ---------------------------------------------------------------------
-# 1. CONFIGURACIÓN DE PÁGINA
+# 1. PAGE CONFIGURATION & CONSTANTS
 # ---------------------------------------------------------------------
 st.set_page_config(
-    page_title="Predictor Vial Bogotá",
+    page_title="Road Risk BI — Bogotá D.C.",
     page_icon="🚑",
     layout="wide"
 )
 
-# Constantes del modelo
-LIMITE_REGISTROS = 8000
-GRADO_POLINOMIO = 4
-VENTANA_MINUTOS = 30
+SAMPLE_LIMIT = 8000
+POLY_DEGREE = 4
+WARNING_WINDOW_MIN = 30
 
-DICCIONARIO_BOGOTA = {
-    1: {"nombre": "Usaquén", "coord": [4.7420, -74.0300]},
-    2: {"nombre": "Chapinero", "coord": [4.6540, -74.0500]},
-    3: {"nombre": "Santa Fe", "coord": [4.6020, -74.0650]},
-    4: {"nombre": "San Cristóbal", "coord": [4.5650, -74.0800]},
-    5: {"nombre": "Usme", "coord": [4.4700, -74.1100]},
-    6: {"nombre": "Tunjuelito", "coord": [4.5750, -74.1350]},
-    7: {"nombre": "Bosa", "coord": [4.6200, -74.1900]},
-    8: {"nombre": "Kennedy", "coord": [4.6300, -74.1500]},
-    9: {"nombre": "Fontibón", "coord": [4.6700, -74.1400]},
-    10: {"nombre": "Engativá", "coord": [4.7100, -74.1100]},
-    11: {"nombre": "Suba", "coord": [4.7600, -74.0900]},
-    12: {"nombre": "Barrios Unidos", "coord": [4.6680, -74.0750]},
-    13: {"nombre": "Teusaquillo", "coord": [4.6450, -74.0850]},
-    14: {"nombre": "Los Mártires", "coord": [4.6050, -74.0880]},
-    15: {"nombre": "Antonio Nariño", "coord": [4.5900, -74.1000]},
-    16: {"nombre": "Puente Aranda", "coord": [4.6200, -74.1150]},
-    17: {"nombre": "La Candelaria", "coord": [4.5960, -74.0720]},
-    18: {"nombre": "Rafael Uribe Uribe", "coord": [4.5600, -74.1200]},
-    19: {"nombre": "Ciudad Bolívar", "coord": [4.5200, -74.1500]},
-    20: {"nombre": "Sumapaz", "coord": [4.0100, -74.3200]},
+BOGOTA_LOCALITIES = {
+    1: {"name": "Usaquén", "lat": 4.7420, "lon": -74.0300},
+    2: {"name": "Chapinero", "lat": 4.6540, "lon": -74.0500},
+    3: {"name": "Santa Fe", "lat": 4.6020, "lon": -74.0650},
+    4: {"name": "San Cristóbal", "lat": 4.5650, "lon": -74.0800},
+    5: {"name": "Usme", "lat": 4.4700, "lon": -74.1100},
+    6: {"name": "Tunjuelito", "lat": 4.5750, "lon": -74.1350},
+    7: {"name": "Bosa", "lat": 4.6200, "lon": -74.1900},
+    8: {"name": "Kennedy", "lat": 4.6300, "lon": -74.1500},
+    9: {"name": "Fontibón", "lat": 4.6700, "lon": -74.1400},
+    10: {"name": "Engativá", "lat": 4.7100, "lon": -74.1100},
+    11: {"name": "Suba", "lat": 4.7600, "lon": -74.0900},
+    12: {"name": "Barrios Unidos", "lat": 4.6680, "lon": -74.0750},
+    13: {"name": "Teusaquillo", "lat": 4.6450, "lon": -74.0850},
+    14: {"name": "Los Mártires", "lat": 4.6050, "lon": -74.0880},
+    15: {"name": "Antonio Nariño", "lat": 4.5900, "lon": -74.1000},
+    16: {"name": "Puente Aranda", "lat": 4.6200, "lon": -74.1150},
+    17: {"name": "La Candelaria", "lat": 4.5960, "lon": -74.0720},
+    18: {"name": "Rafael Uribe Uribe", "lat": 4.5600, "lon": -74.1200},
+    19: {"name": "Ciudad Bolívar", "lat": 4.5200, "lon": -74.1500},
+    20: {"name": "Sumapaz", "lat": 4.0100, "lon": -74.3200},
 }
 
-def normalizar(texto):
-    sin_tildes = unicodedata.normalize("NFKD", str(texto)).encode("ascii", "ignore").decode()
-    return sin_tildes.upper().strip()
+def normalize_text(text):
+    clean = unicodedata.normalize("NFKD", str(text)).encode("ascii", "ignore").decode()
+    return clean.upper().strip()
 
-CODIGO_A_NOMBRE = {cod: d["nombre"] for cod, d in DICCIONARIO_BOGOTA.items()}
-NOMBRE_A_COORD = {d["nombre"]: d["coord"] for d in DICCIONARIO_BOGOTA.values()}
-NORM_A_NOMBRE = {normalizar(d["nombre"]): d["nombre"] for d in DICCIONARIO_BOGOTA.values()}
-NORM_A_NOMBRE.update({
+CODE_TO_NAME = {k: v.get("name") for k, v in BOGOTA_LOCALITIES.items()}
+NAME_TO_LAT = {v.get("name"): v.get("lat") for v in BOGOTA_LOCALITIES.values()}
+NAME_TO_LON = {v.get("name"): v.get("lon") for v in BOGOTA_LOCALITIES.values()}
+NORM_TO_NAME = {normalize_text(v.get("name")): v.get("name") for v in BOGOTA_LOCALITIES.values()}
+NORM_TO_NAME.update({
     "RAFAEL URIBE": "Rafael Uribe Uribe",
     "CANDELARIA": "La Candelaria",
     "MARTIRES": "Los Mártires",
     "SANTAFE": "Santa Fe"
 })
 
-def buscar_columna(df, palabras, excluir=()):
+def find_column(df, keywords, exclude=()):
     for col in df.columns:
-        if any(p in col for p in palabras) and not any(x in col for x in excluir):
+        if any(k in col for k in keywords) and not any(x in col for x in exclude):
             return col
     return None
 
-def extraer_hora(serie):
-    num = pd.to_numeric(serie, errors="coerce")
+def parse_hour(series):
+    num = pd.to_numeric(series, errors="coerce")
     if num.notna().mean() > 0.5 and num.median() > 1e11:
-        fechas = pd.to_datetime(num, unit="ms", utc=True).dt.tz_convert("America/Bogota")
-        return fechas.dt.hour.astype(float)
-    texto = serie.astype(str).str.strip()
-    hora = texto.str.extract(r"(\d{1,2}):")[0]
-    hora = hora.fillna(texto.str.extract(r"^(\d{1,2})(?:\.0)?$")[0])
-    return pd.to_numeric(hora, errors="coerce")
+        dt = pd.to_datetime(num, unit="ms", utc=True).dt.tz_convert("America/Bogota")
+        return dt.dt.hour.astype(float)
+    txt = series.astype(str).str.strip()
+    hr = txt.str.extract(r"(\d{1,2}):").iloc[:, 0]
+    hr = hr.fillna(txt.str.extract(r"^(\d{1,2})(?:\.0)?$").iloc[:, 0])
+    return pd.to_numeric(hr, errors="coerce")
 
-def extraer_fecha(serie):
+def parse_date(series):
     try:
-        num = pd.to_numeric(serie, errors="coerce")
+        num = pd.to_numeric(series, errors="coerce")
         if num.notna().mean() > 0.5 and num.median() > 1e11:
-            f = pd.to_datetime(num, unit="ms", utc=True).dt.tz_convert("America/Bogota").dt.tz_localize(None)
+            d = pd.to_datetime(num, unit="ms", utc=True).dt.tz_convert("America/Bogota").dt.tz_localize(None)
         else:
-            f = pd.to_datetime(serie, errors="coerce")
-            if getattr(f.dt, "tz", None) is not None:
-                f = f.dt.tz_convert("America/Bogota").dt.tz_localize(None)
-        return f.where(f.dt.year.between(2000, 2035))
+            d = pd.to_datetime(series, errors="coerce")
+            if getattr(d.dt, "tz", None) is not None:
+                d = d.dt.tz_convert("America/Bogota").dt.tz_localize(None)
+        return d.where(d.dt.year.between(2000, 2035))
     except Exception:
-        return pd.Series(pd.NaT, index=serie.index)
+        return pd.Series(pd.NaT, index=series.index)
 
 # ---------------------------------------------------------------------
-# 2. INGESTA Y ETL CON RECARGA RESILIENTE
+# 2. DATA LINEAGE, ETL & QUALITY AUDIT METRICS
 # ---------------------------------------------------------------------
-ENDPOINTS_ONLINE = [
-    {"tipo": "soda", "url": "https://www.datos.gov.co/resource/vftc-p83w.json", "params": {"$limit": LIMITE_REGISTROS}},
-    {"tipo": "csv_web", "url": "https://raw.githubusercontent.com/julianherrerapineda/predictor-vial/main/data/historico_siniestros_bogota.csv"},
-    {"tipo": "csv_web", "url": "https://raw.githubusercontent.com/julianherrerapineda/predictor-vial/main/UNICAFAM_DataAnalytics_D2_Data.csv"}
+DATA_SOURCES = [
+    {"type": "curated_csv", "label": "GitHub Curated D2 Dataset", "url": "https://githubusercontent.com"},
+    {"type": "curated_csv", "label": "GitHub Historical Backup", "url": "https://githubusercontent.com"},
+    {"type": "soda_api", "label": "Bogotá Open Data SODA API", "url": "https://datos.gov.co", "params": {"$limit": SAMPLE_LIMIT}}
 ]
 
-def descargar_datos():
+def fetch_raw_data():
     headers = {"User-Agent": "Mozilla/5.0"}
-    for ep in ENDPOINTS_ONLINE:
+    for src in DATA_SOURCES:
         try:
-            if ep["tipo"] == "soda":
-                r = requests.get(ep["url"], params=ep["params"], headers=headers, timeout=10)
-                if r.status_code == 200:
-                    data = r.json()
-                    if isinstance(data, list) and len(data) > 0:
-                        return pd.DataFrame(data)
-            elif ep["tipo"] == "csv_web":
-                r = requests.get(ep["url"], headers=headers, timeout=10)
+            if src.get("type") == "curated_csv":
+                r = requests.get(src.get("url"), headers=headers, timeout=10)
                 if r.status_code == 200:
                     df = pd.read_csv(io.StringIO(r.text), low_memory=False)
                     if len(df) > 0:
-                        return df
+                        return df, src.get("label"), "Observed (Official SDM Records)"
+            elif src.get("type") == "soda_api":
+                r = requests.get(src.get("url"), params=src.get("params"), headers=headers, timeout=10)
+                if r.status_code == 200:
+                    data = r.json()
+                    if isinstance(data, list) and len(data) > 0:
+                        return pd.DataFrame(data), src.get("label"), "Observed (Official SDM Records)"
         except Exception:
             continue
 
-    # Fallback con distribución oficial
+    # Resilient empirical fallback
     rng = np.random.default_rng(42)
-    horas = np.arange(24)
-    pesos = np.array([108, 90, 55, 62, 78, 215, 310, 415, 388, 405, 425, 440,
-                      520, 555, 545, 540, 510, 475, 395, 420, 412, 275, 210, 142], dtype=float)
-    pesos /= pesos.sum()
-    nombres = [d["nombre"] for d in DICCIONARIO_BOGOTA.values()]
-    fechas_generadas = pd.date_range("2021-01-01", "2021-10-31", periods=LIMITE_REGISTROS)
-    return pd.DataFrame({
-        "FECHA": rng.choice(fechas_generadas, LIMITE_REGISTROS),
-        "HORA_NUMERICA": rng.choice(horas, LIMITE_REGISTROS, p=pesos),
-        "NOMBRE_LOCALIDAD": rng.choice(nombres, LIMITE_REGISTROS),
-        "ACCIDENTE_CON": rng.choice(["SOLO DAÑOS", "CON HERIDOS", "CON MUERTOS"], LIMITE_REGISTROS, p=[0.61, 0.37, 0.02]),
-        "CLASE_ACCIDENTE": rng.choice(["CHOQUE", "ATROPELLO", "VOLCAMIENTO", "CAIDA DE OCUPANTE"], LIMITE_REGISTROS),
-        "latitude": rng.uniform(4.55, 4.72, LIMITE_REGISTROS),
-        "longitude": rng.uniform(-74.18, -74.03, LIMITE_REGISTROS),
-        "COORD_REAL": True
+    hours = np.arange(24)
+    weights = np.array((108, 90, 55, 62, 78, 215, 310, 415, 388, 405, 425, 440,
+                        520, 555, 545, 540, 510, 475, 395, 420, 412, 275, 210, 142), dtype=float)
+    weights /= weights.sum()
+    names = [v.get("name") for v in BOGOTA_LOCALITIES.values()]
+    dates = pd.date_range("2021-01-01", "2021-10-31", periods=SAMPLE_LIMIT)
+    df_fb = pd.DataFrame({
+        "FECHA_OCURRENCIA": dates,
+        "HORA_NUMERICA": rng.choice(hours, SAMPLE_LIMIT, p=weights),
+        "NOMBRE_LOCALIDAD": rng.choice(names, SAMPLE_LIMIT),
+        "ACCIDENTE_CON": rng.choice(("SOLO DAÑOS", "CON HERIDOS", "CON MUERTOS"), SAMPLE_LIMIT, p=(0.61, 0.37, 0.02)),
+        "CLASE_ACCIDENTE": rng.choice(("CHOQUE", "ATROPELLO", "VOLCAMIENTO", "CAIDA DE OCUPANTE"), SAMPLE_LIMIT),
+        "LATITUD": rng.uniform(4.55, 4.72, SAMPLE_LIMIT),
+        "LONGITUD": rng.uniform(-74.18, -74.03, SAMPLE_LIMIT)
     })
+    return df_fb, "Empirical Fallback Distribution", "Synthetic (Empirical Distribution)"
 
-def limpiar(df_crudo):
-    df = df_crudo.copy()
+def clean_and_audit(df_raw, source_label, provenance_type):
+    df = df_raw.copy()
     df.columns = [str(c).strip().upper() for c in df.columns]
+    raw_count = len(df)
+    duplicate_count = int(df.duplicated().sum())
+    df = df.drop_duplicates()
 
     if "HORA_NUMERICA" in df.columns:
-        hora = pd.to_numeric(df["HORA_NUMERICA"], errors="coerce")
+        hour = pd.to_numeric(df["HORA_NUMERICA"], errors="coerce")
     else:
-        candidatas = [c for c in df.columns if "HORA" in c]
-        hora = None
-        for c in candidatas:
-            h = extraer_hora(df[c])
+        candidates = [c for c in df.columns if "HORA" in c]
+        hour = None
+        for c in candidates:
+            h = parse_hour(df[c])
             if h.between(0, 23).mean() > 0.5:
-                hora = h
+                hour = h
                 break
-        if hora is None:
-            hora = pd.Series(12, index=df.index)
+        if hour is None:
+            hour = pd.Series(12, index=df.index)
 
-    valida = hora.between(0, 23)
-    df, hora = df[valida], hora[valida].astype(int)
+    valid_mask = hour.between(0, 23)
+    invalid_hours = int((~valid_mask).sum())
+    df, hour = df[valid_mask], hour[valid_mask].astype(int)
 
-    salida = pd.DataFrame(index=df.index)
-    salida["HORA_NUMERICA"] = hora
+    out = pd.DataFrame(index=df.index)
+    out["HORA_NUMERICA"] = hour
 
     for c in [c for c in df.columns if "FECHA" in c]:
-        f = extraer_fecha(df[c])
+        f = parse_date(df[c])
         if f.notna().mean() > 0.5:
-            salida["FECHA"] = f
+            out["FECHA"] = f
             break
+    if "FECHA" not in out.columns or out["FECHA"].isna().all():
+        out["FECHA"] = pd.date_range("2021-01-01", "2021-10-31", periods=len(out))
 
-    if "FECHA" not in salida.columns or salida["FECHA"].isna().all():
-        salida["FECHA"] = pd.date_range("2021-01-01", "2021-10-31", periods=len(salida))
+    days_en = {0: "Monday", 1: "Tuesday", 2: "Wednesday", 3: "Thursday", 4: "Friday", 5: "Saturday", 6: "Sunday"}
+    out["DAY_OF_WEEK"] = out["FECHA"].dt.dayofweek.map(days_en)
 
-    dias_es = {0: "Lunes", 1: "Martes", 2: "Miércoles", 3: "Jueves", 4: "Viernes", 5: "Sábado", 6: "Domingo"}
-    salida["DIA_SEMANA"] = salida["FECHA"].dt.dayofweek.map(dias_es)
-
-    col_loc = buscar_columna(df, ["LOCALIDAD"], excluir=["COD", "ID_"])
+    col_loc = find_column(df, ("LOCALIDAD",), exclude=("COD", "ID_"))
     if col_loc is None:
-        salida["NOMBRE_LOCALIDAD"] = "Desconocida"
+        out["LOCALITY"] = "Unknown"
     else:
-        valores = df[col_loc]
-        numeros = pd.to_numeric(valores, errors="coerce")
-        if numeros.notna().mean() > 0.5:
-            nombres = numeros.map(lambda x: CODIGO_A_NOMBRE.get(int(x)) if pd.notna(x) else None)
+        vals = df[col_loc]
+        nums = pd.to_numeric(vals, errors="coerce")
+        if nums.notna().mean() > 0.5:
+            names = nums.map(lambda x: CODE_TO_NAME.get(int(x)) if pd.notna(x) else None)
         else:
-            nombres = valores.map(lambda x: NORM_A_NOMBRE.get(normalizar(x)))
-        salida["NOMBRE_LOCALIDAD"] = nombres.fillna("Desconocida")
+            names = vals.map(lambda x: NORM_TO_NAME.get(normalize_text(x)))
+        out["LOCALITY"] = names.fillna("Unknown")
 
-    centro_lat = salida["NOMBRE_LOCALIDAD"].map(lambda n: NOMBRE_A_COORD.get(n, [4.65, -74.1])[0])
-    centro_lon = salida["NOMBRE_LOCALIDAD"].map(lambda n: NOMBRE_A_COORD.get(n, [4.65, -74.1])[1])
-    salida["latitude"], salida["longitude"] = centro_lat, centro_lon
+    c_lat = out["LOCALITY"].map(lambda n: NAME_TO_LAT.get(n, 4.65))
+    c_lon = out["LOCALITY"].map(lambda n: NAME_TO_LON.get(n, -74.10))
+    out["latitude"], out["longitude"] = c_lat, c_lon
 
-    col_lat = buscar_columna(df, ["LATITUD", "LATITUDE"]) or ("Y" if "Y" in df.columns else None)
-    col_lon = buscar_columna(df, ["LONGITUD", "LONGITUDE"]) or ("X" if "X" in df.columns else None)
+    col_lat = find_column(df, ("LATITUD", "LATITUDE")) or ("Y" if "Y" in df.columns else None)
+    col_lon = find_column(df, ("LONGITUD", "LONGITUDE")) or ("X" if "X" in df.columns else None)
+    imputed_coords = 0
     if col_lat and col_lon:
         lat = pd.to_numeric(df[col_lat].astype(str).str.replace(",", ".", regex=False), errors="coerce")
         lon = pd.to_numeric(df[col_lon].astype(str).str.replace(",", ".", regex=False), errors="coerce")
-        ok = lat.between(3.5, 5.0) & lon.between(-75.0, -73.5)
-        salida["latitude"] = lat.where(ok, centro_lat)
-        salida["longitude"] = lon.where(ok, centro_lon)
+        geo_ok = lat.between(3.5, 5.0) & lon.between(-75.0, -73.5)
+        imputed_coords = int((~geo_ok).sum())
+        out["latitude"] = lat.where(geo_ok, c_lat)
+        out["longitude"] = lon.where(geo_ok, c_lon)
 
-    # Normalización segura de severidad y tipología
-    col_grav = buscar_columna(df, ["GRAVEDAD", "ACCIDENTE_CON", "SEVERIDAD"])
+    sev_map = {
+        "SOLO DAÑOS": "Property Damage Only",
+        "CON HERIDOS": "With Casualties (Injured)",
+        "CON MUERTOS": "With Fatalities"
+    }
+    col_grav = find_column(df, ("GRAVEDAD", "ACCIDENTE_CON", "SEVERIDAD"))
     if col_grav:
-        salida["ACCIDENTE_CON"] = df[col_grav].astype(str).str.strip().str.upper()
-
-    col_clase = buscar_columna(df, ["CLASE", "CLASE_ACCIDENTE", "TIPO"])
-    if col_clase:
-        salida["CLASE_ACCIDENTE"] = df[col_clase].astype(str).str.strip().str.upper()
-
-    return salida.reset_index(drop=True)
-
-@st.cache_data(ttl=900)
-def cargar_datos():
-    return limpiar(descargar_datos())
-
-df_live = cargar_datos()
-
-# ---------------------------------------------------------------------
-# 3. ENCABEZADO Y TARJETA VISUAL DE FECHAS (LEGIBLE)
-# ---------------------------------------------------------------------
-st.title("🚑 Predictor Inteligente de Riesgo Vial — Bogotá D.C.")
-st.markdown("""
-<div style="background-color: #1e293b; color: #f1f5f9; padding: 16px 20px; border-radius: 8px; border-left: 6px solid #38bdf8; font-size: 1.05rem; line-height: 1.6; margin-bottom: 18px;">
-    <b>🏛️ Fuente Oficial:</b> Secretaría Distrital de Movilidad / Portal de Datos Abiertos de Bogotá<br>
-    <b>📅 Periodo de los Datos:</b> <span style="color: #38bdf8; font-weight: bold;">1 de enero al 31 de octubre de 2021</span> <i>(Censo Consolidado SDM)</i><br>
-    <b>🔢 Muestra Analítica:</b> 8,000 registros georreferenciados depurados
-</div>
-""", unsafe_allow_html=True)
-
-# ---------------------------------------------------------------------
-# 4. BARRA LATERAL CON FILTROS SEGUROS
-# ---------------------------------------------------------------------
-st.sidebar.header("🎛️ Filtros Interactivos")
-
-# Filtro 1: Día de la semana (recalcula la curva de cálculo)
-if "DIA_SEMANA" in df_live.columns:
-    dias_orden = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
-    dias_disp = [d for d in dias_orden if d in df_live["DIA_SEMANA"].unique()]
-    opciones_dias = ["Todos los días"] + dias_disp
-else:
-    opciones_dias = ["Todos los días"]
-
-dia_sel = st.sidebar.selectbox("📅 Selecciona el día de la semana:", opciones_dias)
-
-# Filtro 2: Hora del día (mueve la línea verde en la curva y actualiza el mapa)
-hora_sel = st.sidebar.slider("🕒 Selecciona la hora a inspeccionar (0 a 23 h):", 0, 23, 14)
-
-st.sidebar.write("---")
-
-# Filtro 3: Gravedad (protegido contra KeyError)
-sel_grav = "Todos"
-if "ACCIDENTE_CON" in df_live.columns:
-    opciones_g = ["Todos"] + sorted(df_live["ACCIDENTE_CON"].dropna().unique())
-    sel_grav = st.sidebar.selectbox("Gravedad del siniestro:", opciones_g)
-
-# Filtro 4: Clase de choque (protegido contra KeyError)
-sel_clase = "Todos"
-if "CLASE_ACCIDENTE" in df_live.columns:
-    opciones_c = ["Todos"] + sorted(df_live["CLASE_ACCIDENTE"].dropna().unique())
-    sel_clase = st.sidebar.selectbox("Clase de siniestro:", opciones_c)
-
-# Aplicación de filtros
-df_curva = df_live.copy()
-if dia_sel != "Todos los días" and "DIA_SEMANA" in df_curva.columns:
-    df_curva = df_curva[df_curva["DIA_SEMANA"] == dia_sel]
-
-if sel_grav != "Todos" and "ACCIDENTE_CON" in df_curva.columns:
-    df_curva = df_curva[df_curva["ACCIDENTE_CON"] == sel_grav]
-
-if sel_clase != "Todos" and "CLASE_ACCIDENTE" in df_curva.columns:
-    df_curva = df_curva[df_curva["CLASE_ACCIDENTE"] == sel_clase]
-
-# ---------------------------------------------------------------------
-# 5. MODELADO DE CÁLCULO DIFERENCIAL
-# ---------------------------------------------------------------------
-conteo = df_curva.groupby("HORA_NUMERICA").size().reindex(range(24), fill_value=0)
-X = conteo.index.to_numpy()
-Y = conteo.to_numpy()
-
-if (Y > 0).sum() < 5:
-    st.warning("Pocos datos para los filtros elegidos. Selecciona 'Todos los días'.")
-    st.stop()
-
-# Ajuste por mínimos cuadrados (Grado 4)
-coef = np.polyfit(X, Y, GRADO_POLINOMIO)
-f_riesgo = np.poly1d(coef)
-
-ss_res = np.sum((Y - f_riesgo(X)) ** 2)
-ss_tot = np.sum((Y - Y.mean()) ** 2)
-r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0.0
-
-# Optimización analítica
-t = sp.Symbol('t')
-R_expr = sum(sp.Float(float(c)) * t ** (GRADO_POLINOMIO - i) for i, c in enumerate(coef))
-R1 = sp.diff(R_expr, t)
-R2 = sp.diff(R_expr, t, 2)
-
-raices = [complex(r) for r in sp.Poly(R1, t).nroots()]
-reales = [r.real for r in raices if abs(r.imag) < 1e-6 and 0 <= r.real <= 23]
-maximos = [r for r in reales if float(R2.subs(t, r)) < 0]
-candidatos = maximos + [0.0, 23.0]
-t_pico = max(candidatos, key=lambda val: float(f_riesgo(val)))
-
-min_pico = round(t_pico * 60)
-h_pico, m_pico = divmod(min_pico, 60)
-min_alerta = (min_pico - VENTANA_MINUTOS) % 1440
-h_alerta, m_alerta = divmod(min_alerta, 60)
-
-# Alerta preventiva destacada
-st.error(f"🚨 **ALERTA PREVENTIVA ({dia_sel.upper()}):** Enviar unidades de emergencia a las **{h_alerta:02d}:{m_alerta:02d} h** (30 minutos antes del pico crítico de las **{h_pico:02d}:{m_pico:02d} h**).")
-
-# ---------------------------------------------------------------------
-# 6. MÉTRICAS EXPLICATIVAS
-# ---------------------------------------------------------------------
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("🕰️ Pico Crítico Analítico", f"{h_pico:02d}:{m_pico:02d} h", help="Donde la tasa de cambio instantánea se anula: R'(t)=0 y R''(t)<0")
-c2.metric("🚑 Salida Preventiva", f"{h_alerta:02d}:{m_alerta:02d} h", help="Ventana de pre-posicionamiento (t* - 30 min)")
-c3.metric("📐 Capacidad Explicativa (r²)", f"{r2:.1%}", help="El modelo explica este porcentaje de la variación horaria")
-c4.metric(f"📊 Siniestros a las {hora_sel:02d}:00 h", f"{Y[hora_sel]} choques", help=f"Casos observados a la hora seleccionada para {dia_sel}")
-
-st.write("---")
-
-# ---------------------------------------------------------------------
-# 7. GRÁFICA AUTOEXPLICATIVA Y MAPA GEORREFERENCIADO
-# ---------------------------------------------------------------------
-col_graf, col_map = st.columns([1.1, 0.9])
-
-with col_graf:
-    st.subheader(f"📈 Modelado Continuo R(t) — {dia_sel}")
-    st.caption("Aproximación por mínimos cuadrados y optimización diferencial.")
-
-    fig, ax = plt.subplots(figsize=(9, 5.2))
-    
-    # Sombreado de meseta diurna
-    ax.axvspan(12, 16, color="#ffedd5", alpha=0.55, label="Franja diurna de alto riesgo (12:00 a 16:00 h)")
-    
-    # Datos discretos y curva suave
-    ax.scatter(X, Y, color="#1e293b", s=40, zorder=4, label="Siniestros observados (datos discretos)")
-    x_suave = np.linspace(0, 23, 600)
-    y_suave = f_riesgo(x_suave)
-    ax.plot(x_suave, y_suave, color="#0284c7", linewidth=2.6, label="Función suave R(t)")
-
-    # Líneas de derivadas y alerta
-    y_pico_val = float(f_riesgo(t_pico))
-    ax.axvline(x=t_pico, color="#b91c1c", linestyle="--", linewidth=2, label=f"Pico R'(t)=0 ({h_pico:02d}:{m_pico:02d} h)")
-    ax.axvline(x=t_pico - 0.5, color="#d97706", linestyle=":", linewidth=2, label=f"Alerta temprana ({h_alerta:02d}:{m_alerta:02d} h)")
-    ax.axvline(x=hora_sel, color="#16a34a", linestyle="-", linewidth=1.6, label=f"Hora inspeccionada ({hora_sel:02d}:00 h)")
-
-    # Anotación visual sobre la cima
-    ax.annotate(
-        f"Máximo analítico\n{h_pico:02d}:{m_pico:02d} h",
-        xy=(t_pico, y_pico_val),
-        xytext=(t_pico - 4.2, y_pico_val + 25),
-        arrowprops=dict(facecolor="#b91c1c", shrink=0.08, width=1.4, headwidth=6),
-        fontsize=8.5, fontweight="bold", color="#7f1d1d",
-        bbox=dict(boxstyle="round,pad=0.3", fc="#fee2e2", ec="#b91c1c", lw=1)
-    )
-
-    ax.set_xlim(-0.5, 23.5)
-    ax.set_ylim(bottom=0, top=max(Y.max(), y_pico_val) * 1.25)
-    ax.set_xticks(range(0, 24, 2))
-    ax.set_xticklabels([f"{h:02d}:00" for h in range(0, 24, 2)], fontsize=8)
-    ax.set_xlabel("Hora del día (t)", fontweight="bold")
-    ax.set_ylabel("Cantidad de siniestros viales", fontweight="bold")
-    ax.legend(loc="upper left", fontsize=7.5, framealpha=0.9)
-    ax.grid(True, linestyle="--", alpha=0.3)
-    st.pyplot(fig)
-    plt.close(fig)
-
-    # LEYENDA PEDAGÓGICA AUTOEXPLICATIVA
-    st.info("""
-    **💡 Interpretacion**
-    * **Puntos negros:** Son los datos agrupados por hora (valores discretos).
-    * **Curva azul continua $R(t)$:** Modela matemáticamente cómo sube y baja el riesgo en cualquier fracción de minuto.
-    * **Línea roja discontinua:** Es la cima encontrada con cálculo diferencial donde la tasa de cambio es cero ($R'(t)=0$) y la curva es cóncava hacia abajo ($R''(t)<0$).
-    * **Línea naranja punteada:** Es el momento exacto en que se activa la alerta de pre-posicionamiento ($t^* - 30$ min)[cite: 7].
-    * **Línea verde continua:** Marca la hora específica que estás visualizando en el mapa de la derecha.
-    """)
-
-with col_map:
-    st.subheader(f"🗺️ Despacho a las {hora_sel:02d}:00 h ({dia_sel})")
-    st.caption("Ubicación exacta y focalización de unidades de emergencia.")
-
-    datos_mapa = df_curva[df_curva["HORA_NUMERICA"] == hora_sel].dropna(subset=["latitude", "longitude"])
-    
-    if datos_mapa.empty:
-        st.warning(f"No hay siniestros reportados para las {hora_sel:02d}:00 h en {dia_sel}.")
+        raw_sev = df[col_grav].astype(str).str.strip().str.upper()
+        out["SEVERITY"] = raw_sev.map(lambda s: sev_map.get(s, s.title()))
     else:
-        mapa_df = (datos_mapa.assign(latitude=datos_mapa["latitude"].round(3),
-                                     longitude=datos_mapa["longitude"].round(3))
-                   .groupby(["latitude", "longitude"]).size().reset_index(name="count"))
-        mapa_df["point_size"] = 150 + 1200 * mapa_df["count"] / mapa_df["count"].max()
-        st.map(mapa_df, size="point_size", color="#dc2626aa", zoom=10.2)
+        out["SEVERITY"] = "Unspecified"
 
-        st.markdown("#### 🎯 Prioridad Territorial de Unidades")
-        top_loc = datos_mapa[datos_mapa["NOMBRE_LOCALIDAD"] != "Desconocida"]["NOMBRE_LOCALIDAD"].value_counts().head(3)
-        if not top_loc.empty:
-            cols_r = st.columns(len(top_loc))
-            medallas = ["🥇 Prioridad 1", "🥈 Prioridad 2", "🥉 Prioridad 3"]
-            for i, (nom_loc, cant) in enumerate(top_loc.items()):
-                with cols_r[i]:
-                    st.metric(medallas[i], nom_loc, f"{cant} choques")
-        else:
-            st.info("Sin registros de localidad para esta franja.")
-
-# ---------------------------------------------------------------------
-# 8. PIE DE PÁGINA
-# ---------------------------------------------------------------------
-st.write("---")
-st.caption("Trazabilidad Académica: Proyecto Integrador INGENIA · UNICAFAM · Bogotá D.C.")
