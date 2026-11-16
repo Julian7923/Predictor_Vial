@@ -405,14 +405,14 @@ else:
         verdict = "SUPPORTED" if r2 >= 0.90 else "PARTIALLY SUPPORTED (SUB-SEGMENT VARIANCE)"
         st.success(f"**Hypothesis Verdict ({verdict}):** Diurnal crash volume peaks around **{h_peak:02d}:{m_peak:02d} h** ($r^2 = {r2:.2f}$), enabling early unit staging at **{h_alert:02d}:{m_alert:02d} h**.")
 
-    with col_spatial:
+        with col_spatial:
         st.subheader(f"🗺️ Territorial Priority at {inspect_hour:02d}:00 h")
         map_data = df_view[df_view["HORA_NUMERICA"] == inspect_hour].dropna(subset=("latitude", "longitude"))
 
         if map_data.empty:
             st.warning(f"No crashes recorded at **{inspect_hour:02d}:00 h** under {scenario_label}.")
         else:
-                        if sel_loc == "All Localities":
+            if sel_loc == "All Localities":
                 st.markdown(f"#### 🎯 Priority Dispatch Zones ({inspect_hour:02d}:00 h)")
                 top_locs = map_data[map_data["LOCALITY"] != "Unknown"]["LOCALITY"].value_counts().head(3)
                 if not top_locs.empty:
