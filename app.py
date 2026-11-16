@@ -220,13 +220,13 @@ def clean_and_audit(df_raw, source_label, provenance_type):
         "provenance_type": provenance_type,
         "raw_count": raw_count,
         "valid_count": len(out),
-"duplicates_removed": duplicate_count,
-"invalid_hours_removed": invalid_hours,
-"imputed_coords": imputed_coords,
-"completeness_pct": round((len(out) / raw_count) * 100, 2) if raw_count > 0 else 0.0,
-"midnight_share_pct": round((out["HORA_NUMERICA"] == 0).mean() * 100, 2)
-}
-return out.reset_index(drop=True), audit_meta
+        "duplicates_removed": duplicate_count,
+        "invalid_hours_removed": invalid_hours,
+        "imputed_coords": imputed_coords,
+        "completeness_pct": round((len(out) / raw_count) * 100, 2) if raw_count > 0 else 0.0,
+        "midnight_share_pct": round((out["HORA_NUMERICA"] == 0).mean() * 100, 2)
+    }
+    return out.reset_index(drop=True), audit_meta
 
 @st.cache_data(ttl=900)
 def load_pipeline():
