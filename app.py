@@ -227,10 +227,12 @@ def clean_and_audit(df_raw, source_label, provenance_type):
 "midnight_share_pct": round((out["HORA_NUMERICA"] == 0).mean() * 100, 2)
 }
 return out.reset_index(drop=True), audit_meta
+
 @st.cache_data(ttl=900)
 def load_pipeline():
-raw_df, src_lbl, prov = fetch_raw_data()
-return clean_and_audit(raw_df, src_lbl, prov)
+    raw_df, src_lbl, prov = fetch_raw_data()
+    return clean_and_audit(raw_df, src_lbl, prov)
+
 df_master, audit_info = load_pipeline()
 
 ```python
