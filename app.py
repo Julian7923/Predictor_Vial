@@ -412,33 +412,35 @@ else:
         if map_data.empty:
             st.warning(f"No crashes recorded at **{inspect_hour:02d}:00 h** under {scenario_label}.")
         else:
-            if sel_loc == "All Localities":
+                        if sel_loc == "All Localities":
                 st.markdown(f"#### 🎯 Priority Dispatch Zones ({inspect_hour:02d}:00 h)")
                 top_locs = map_data[map_data["LOCALITY"] != "Unknown"]["LOCALITY"].value_counts().head(3)
-if not top_locs.empty:
-cols = st.columns(len(top_locs))
-badges = ("🥇 Priority 1", "🥈 Priority 2", "🥉 Priority 3")
-for idx, (loc_name, cnt) in enumerate(top_locs.items()):
-with cols[idx]:
-st.metric(badges[idx], loc_name, f"{cnt} crashes")
-else:
-st.markdown(f"#### 🚨 Severity Breakdown in {sel_loc} ({inspect_hour:02d}:00 h)")
-top_sev = map_data["SEVERITY"].value_counts().head(3)
-cols = st.columns(len(top_sev))
-for idx, (sev_name, cnt) in enumerate(top_sev.items()):
-with cols[idx]:
-st.metric(f"Rank {idx + 1}", sev_name, f"{cnt} cases")
-map_agg = (
-map_data.assign(
-latitude=map_data["latitude"].round(3),
-longitude=map_data["longitude"].round(3)
-)
-.groupby(["latitude", "longitude"])
-.size()
-.reset_index(name="count")
-)
-map_agg["point_size"] = 150 + 1200 * map_agg["count"] / map_agg["count"].max()
-zoom_lvl = 12.2 if sel_loc != "All Localities" else 10.2
-st.map(map_agg, size="point_size", color="#dc2626aa", zoom=zoom_lvl)
+                if not top_locs.empty:
+                    cols = st.columns(len(top_locs))
+                    badges = ("🥇 Priority 1", "🥈 Priority 2", "🥉 Priority 3")
+                    for idx, (loc_name, cnt) in enumerate(top_locs.items()):
+                        with cols[idx]:
+                            st.metric(badges[idx], loc_name, f"{cnt} crashes")
+            else:
+                st.markdown(f"#### 🚨 Severity Breakdown in {sel_loc} ({inspect_hour:02d}:00 h)")
+                top_sev = map_data["SEVERITY"].value_counts().head(3)
+                cols = st.columns(len(top_sev))
+                for idx, (sev_name, cnt) in enumerate(top_sev.items()):
+                    with cols[idx]:
+                        st.metric(f"Rank {idx + 1}", sev_name, f"{cnt} cases")
+
+            map_agg = (
+                map_data.assign(
+                    latitude=map_data["latitude"].round(3),
+                    longitude=map_data["longitude"].round(3)
+                )
+                .groupby(["latitude", "longitude"])
+                .size()
+                .reset_index(name="count")
+            )
+            map_agg["point_size"] = 150 + 1200 * map_agg["count"] / map_agg["count"].max()
+            zoom_lvl = 12.2 if sel_loc != "All Localities" else 10.2
+            st.map(map_agg, size="point_size", color="#dc2626aa", zoom=zoom_lvl)
+
 st.write("---")
 st.caption("UNICAFAM - Introduction to Data Analytics (2026-2) - Deliverable 3 BI & Data Storytelling - Jose Julian Herrera & Deglym Sneider Ossa")
